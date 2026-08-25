@@ -126,11 +126,14 @@ Todo agente despachado deve retornar:
 ## Handoff — Curator
 
 1. Maestro carrega `data/user-profile.md`.
-2. Maestro carrega a persona do Curator.
-3. Maestro fornece as habilidades ou lacunas que devem ser analisadas.
-4. Curator executa exclusivamente a tarefa delegada.
-5. Curator retorna o Envelope de Resposta.
-6. Maestro valida e apresenta o resultado ao usuário.
+2. Maestro carrega `personas/curator.md`.
+3. Maestro fornece ao Curator os dados da vaga selecionada pelo usuário.
+4. Curator compara os requisitos da vaga com as evidências disponíveis no perfil.
+5. Curator identifica aderências, lacunas e prioridades sem inventar informações ausentes.
+6. Curator executa exclusivamente a análise delegada.
+7. Curator retorna o Envelope de Resposta ao Maestro.
+8. Maestro valida o resultado e o apresenta ao usuário.
+9. Maestro retorna o controle ao usuário e não inicia outra ação automaticamente.
 
 ## Handoff — Coach
 
