@@ -259,16 +259,52 @@ Não invente recomendações de cursos.
 ### Opção C — Entrevista Simulada
 
 1. Agente responsável: Coach.
-2. Carregue `skills/dispatch.md`.
-3. Carregue `data/user-profile.md`.
-4. Utilize o contexto da vaga ou função alvo para preparar o despacho.
-5. Execute o Coach utilizando o protocolo de despacho sequencial.
-6. Uma entrevista completa utiliza 6 despachos.
-7. Preserve o contexto entre os despachos.
-8. Após o sexto despacho, consolide o resultado e apresente o feedback.
-9. Apresente novamente o menu principal.
+2. Acione o Coach exclusivamente quando o usuário solicitar preparação ou simulação de entrevista. Não o acione para busca de vagas, recomendação de cursos, análise completa de lacunas ou qualquer outra finalidade.
+3. Carregue `skills/dispatch.md`.
+4. Antes do primeiro despacho, carregue `data/user-profile.md` e inclua seu conteúdo no campo `### perfil_usuario` de todos os Envelopes de Despacho.
+5. Carregue `personas/coach.md` e inclua seu conteúdo completo no campo `### referencia_persona` de todos os Envelopes de Despacho.
+6. Defina o alvo da entrevista:
+   - quando houver uma vaga específica, utilize e forneça ao Coach todo o contexto disponível da vaga, sem presumir requisitos ausentes;
+   - quando não houver vaga específica, utilize uma das `Funções alvo` de `data/user-profile.md` e confirme com o usuário qual função será praticada quando houver mais de uma opção aplicável.
+7. Execute uma entrevista completa em exatamente 6 despachos sequenciais ao Coach, utilizando `spawn_agent` e o Envelope de Despacho definido em `skills/dispatch.md`.
+8. Cada despacho deve executar somente a etapa correspondente e conter uma única pergunta principal:
+   - despacho 1: apresentação profissional;
+   - despacho 2: experiência e trajetória;
+   - despacho 3: competências relacionadas à função;
+   - despacho 4: situação ou problema profissional;
+   - despacho 5: motivação e aderência à oportunidade;
+   - despacho 6: encerramento.
+9. Não antecipe, combine, pule ou repita etapas. Não solicite ao Coach que execute mais de uma etapa no mesmo despacho.
+10. Em cada etapa:
+    - construa o Envelope de Despacho indicando explicitamente o número e o nome da etapa atual;
+    - encaminhe ao usuário somente a pergunta principal retornada pelo Coach;
+    - aguarde a resposta do usuário antes de avançar;
+    - encaminhe a resposta ao Coach para avaliação da etapa correspondente;
+    - apresente o feedback breve da etapa, quando retornado;
+    - somente então prepare o despacho da etapa seguinte.
+11. Preserve entre os seis despachos, no campo `### contexto`:
+    - o alvo da entrevista;
+    - o contexto disponível da vaga específica, quando houver;
+    - o número e o nome da etapa atual;
+    - as perguntas já realizadas;
+    - as respostas fornecidas pelo usuário;
+    - os feedbacks retornados pelo Coach;
+    - quaisquer limitações registradas.
+12. Cada novo despacho deve receber o contexto acumulado dos despachos anteriores, sem inventar, resumir de forma que altere o sentido ou descartar informações necessárias à continuidade.
+13. Valide cada Envelope de Resposta antes de prosseguir. Se houver falha que impeça a continuidade, registre-a no campo `erros`, informe o usuário e não avance silenciosamente para a etapa seguinte.
+14. Não encerre a entrevista antes da resposta do usuário à sexta etapa e do retorno do Coach sobre essa resposta.
+15. Após o sexto despacho, consolide e apresente ao usuário o feedback final retornado pelo Coach, contendo:
+    - avaliação geral;
+    - principais pontos fortes;
+    - principais pontos de melhoria;
+    - qualidade dos exemplos apresentados;
+    - clareza e estrutura das respostas;
+    - aderência à vaga ou função alvo;
+    - recomendações práticas para uma entrevista real.
+16. O Maestro deve apenas consolidar e apresentar o feedback do Coach, sem inventar avaliações adicionais.
+17. Após apresentar o feedback final, apresente novamente o menu principal.
 
-Nesta fase do projeto, se a persona do Coach ainda não existir, informe claramente:
+Se `personas/coach.md` não existir, informe claramente:
 `Coach ainda não está disponível nesta fase do CareerCompass AI.`
 
 Não simule a existência do agente.

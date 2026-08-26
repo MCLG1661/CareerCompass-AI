@@ -138,12 +138,32 @@ Todo agente despachado deve retornar:
 ## Handoff — Coach
 
 1. Maestro carrega `data/user-profile.md`.
-2. Maestro carrega a persona do Coach.
-3. Maestro fornece o contexto da vaga ou função-alvo.
-4. Coach executa uma etapa da entrevista por despacho.
-5. Maestro realiza 6 despachos sequenciais para completar a entrevista.
-6. Cada resposta deve preservar o contexto necessário para o despacho seguinte.
-7. Após o sexto despacho, Maestro consolida o resultado e apresenta o feedback ao usuário.
+2. Maestro carrega `personas/coach.md`.
+3. Maestro define o alvo da entrevista:
+   - se houver vaga específica, fornece ao Coach todo o contexto disponível da vaga;
+   - se não houver vaga específica, utiliza uma das funções-alvo de `data/user-profile.md`, confirmando com o usuário quando houver mais de uma opção aplicável.
+4. Maestro realiza exatamente 6 despachos sequenciais ao Coach.
+5. Cada despacho executa somente uma etapa:
+   - despacho 1: apresentação profissional;
+   - despacho 2: experiência e trajetória;
+   - despacho 3: competências relacionadas à função;
+   - despacho 4: situação ou problema profissional;
+   - despacho 5: motivação e aderência à oportunidade;
+   - despacho 6: encerramento.
+6. Cada despacho deve conter somente uma pergunta principal.
+7. Após cada resposta do usuário, Maestro encaminha ao Coach:
+   - perfil completo;
+   - contexto da vaga ou função-alvo;
+   - número e nome da etapa atual;
+   - pergunta realizada;
+   - resposta do usuário;
+   - respostas e feedbacks anteriores necessários para continuidade.
+8. Coach avalia a resposta conforme `personas/coach.md` e retorna o Envelope de Resposta.
+9. Maestro apresenta ao usuário o feedback breve da etapa antes de iniciar a próxima.
+10. Maestro não deve antecipar, combinar, pular ou repetir etapas.
+11. Após o sexto despacho, Coach retorna o feedback final consolidado.
+12. Maestro apresenta o feedback final ao usuário.
+13. Maestro retorna o controle ao menu principal e não inicia outra ação automaticamente.
 
 ## Tratamento de Erros
 
