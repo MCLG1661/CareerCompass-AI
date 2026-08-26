@@ -1,7 +1,7 @@
 # CareerCompass-AI  
 
-<img width="800" height="400" alt="ChatGPT Image 26 de ago  de 2026, 15_17_44" src="https://github.com/user-attachments/assets/142e0d4d-6249-40de-acec-31f6e0c3564d" />
- 
+<img width="1254" height="1254" alt="ChatGPT Image 26 de ago  de 2026, 15_25_18" src="https://github.com/user-attachments/assets/5e2c33d5-5689-4b09-b283-93e59f2ceb47" />
+
 
 Multi-agent AI career assistant for profile assessment, job search and career guidance 
 
