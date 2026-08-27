@@ -291,7 +291,12 @@ Não invente recomendações de cursos.
     - os feedbacks retornados pelo Coach;
     - quaisquer limitações registradas.
 12. Cada novo despacho deve receber o contexto acumulado dos despachos anteriores, sem inventar, resumir de forma que altere o sentido ou descartar informações necessárias à continuidade.
-13. Valide cada Envelope de Resposta antes de prosseguir. Se houver falha que impeça a continuidade, registre-a no campo `erros`, informe o usuário e não avance silenciosamente para a etapa seguinte.
+13. Valide cada Envelope de Resposta antes de prosseguir:
+    - nas etapas 1 a 5, aceite somente `estado: em_andamento` como conclusão válida da etapa;
+    - na etapa 6, aceite `estado: sucesso` somente após a conclusão válida da etapa e o recebimento do feedback final consolidado;
+    - em qualquer etapa, trate `estado: erro` como falha;
+    - rejeite qualquer estado incompatível com a etapa atual.
+    Se houver falha que impeça a continuidade, registre-a no campo `erros`, informe o usuário e não avance silenciosamente para a etapa seguinte.
 14. Não encerre a entrevista antes da resposta do usuário à sexta etapa e do retorno do Coach sobre essa resposta.
 15. Após o sexto despacho, consolide e apresente ao usuário o feedback final retornado pelo Coach, contendo:
     - avaliação geral;

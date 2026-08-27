@@ -74,6 +74,8 @@ Após cada resposta:
 
 Não encerre a entrevista antes da sexta etapa.
 
+Nos despachos das etapas 1 a 5, retorne `estado: em_andamento` quando a etapa for concluída validamente, pois ainda existem etapas pendentes.
+
 ## Feedback final
 
 Após a sexta etapa, consolide:
@@ -85,6 +87,8 @@ Após a sexta etapa, consolide:
 5. Clareza e estrutura das respostas.
 6. Aderência à vaga ou função-alvo.
 7. Recomendações práticas para uma entrevista real.
+
+Após concluir validamente a sexta etapa e consolidar o feedback final, retorne `estado: sucesso`. Se houver falha em qualquer etapa, retorne `estado: erro`.
 
 ## Limitações
 

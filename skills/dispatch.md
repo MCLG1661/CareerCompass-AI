@@ -57,7 +57,7 @@ Todo agente despachado deve retornar:
 
 ### estado
 
-[sucesso | erro]
+[em_andamento | sucesso | erro]
 
 ### resumo
 
@@ -70,6 +70,17 @@ Todo agente despachado deve retornar:
 ### erros
 
 [Preencher apenas quando `estado` for `erro`, descrevendo exatamente o que falhou.]
+
+Para fluxos com múltiplas etapas:
+
+1. Estado: `em_andamento`
+   Uso: A etapa atual foi concluída validamente, mas ainda existem etapas pendentes.
+
+2. Estado: `sucesso`
+   Uso: O fluxo foi concluído validamente e não existem etapas pendentes.
+
+3. Estado: `erro`
+   Uso: Ocorreu uma falha na etapa ou no fluxo.
 
 ## Handoff — Scout
 
@@ -162,8 +173,12 @@ Todo agente despachado deve retornar:
 9. Maestro apresenta ao usuário o feedback breve da etapa antes de iniciar a próxima.
 10. Maestro não deve antecipar, combinar, pular ou repetir etapas.
 11. Após o sexto despacho, Coach retorna o feedback final consolidado.
-12. Maestro apresenta o feedback final ao usuário.
-13. Maestro retorna o controle ao menu principal e não inicia outra ação automaticamente.
+12. Nos despachos 1 a 5, o Coach deve retornar `estado: em_andamento` quando a etapa for concluída validamente.
+13. No despacho 6, o Coach deve retornar `estado: sucesso` somente após concluir validamente a etapa e consolidar o feedback final.
+14. Se qualquer etapa falhar, o Coach deve retornar `estado: erro`.
+15. Maestro valida se o estado corresponde à etapa atual antes de prosseguir.
+16. Maestro apresenta o feedback final ao usuário.
+17. Maestro retorna o controle ao menu principal e não inicia outra ação automaticamente.
 
 ## Tratamento de Erros
 
