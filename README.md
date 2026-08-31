@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="CareerCompass-icon.png" alt="CareerCompass AI" width="160">
+  <img src="careercompass-icon.png" alt="CareerCompass AI" width="160">
 </p>
 
 <h1 align="center">CareerCompass AI</h1>
@@ -54,6 +54,7 @@ O **Profile Engine** transforma o conteúdo textual do currículo em uma represe
 
 Entre as dimensões analisadas estão:
 
+- nome do candidato;
 - áreas profissionais;
 - senioridade;
 - hard skills;
@@ -73,7 +74,7 @@ O **Scout** analisa as competências presentes no perfil ativo e identifica cami
 
 O módulo gera um ranking inicial considerando a relação entre o perfil detectado e diferentes funções profissionais.
 
-Exemplos de resultados:
+O resultado pode apresentar:
 
 - cargo ou caminho profissional;
 - percentual de aderência;
@@ -120,8 +121,6 @@ Cada resposta é analisada considerando elementos como:
 
 Após cada etapa, o candidato recebe feedback e recomendações para melhorar suas respostas.
 
-O objetivo é transformar experiências registradas no currículo em uma narrativa mais estruturada para processos seletivos.
-
 ---
 
 ### 📋 Assessment — Relatório Profissional
@@ -130,9 +129,11 @@ O módulo de **Relatório Profissional** consolida as informações detectadas n
 
 O assessment pode apresentar:
 
-- resumo do candidato;
+- identificação do candidato;
 - fonte analisada;
-- senioridade identificada;
+- data da análise;
+- senioridade;
+- resumo executivo;
 - áreas profissionais;
 - hard skills;
 - ferramentas;
@@ -157,8 +158,6 @@ O relatório pode ser utilizado como base para processos de:
 ---
 
 ## 🧩 Arquitetura multiagente
-
-O CareerCompass AI utiliza módulos especializados que compartilham o perfil profissional como contexto central.
 
 ```text
                     ┌───────────────────────┐
@@ -192,6 +191,12 @@ O CareerCompass AI utiliza módulos especializados que compartilham o perfil pro
                     ┌───────────────────────┐
                     │    Report Engine      │
                     │ Professional Report   │
+                    └───────────┬───────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │      PDF Engine       │
+                    │    PDF / Markdown     │
                     └───────────────────────┘
 ```
 
@@ -207,23 +212,21 @@ O CareerCompass AI utiliza módulos especializados que compartilham o perfil pro
 | **Curator** | Comparar candidato e oportunidade |
 | **Coach** | Simular entrevistas e avaliar respostas |
 | **Report Engine** | Consolidar o diagnóstico profissional |
+| **PDF Engine** | Gerar versão exportável do assessment |
 | **Maestro AI** | Conceito de coordenação dos módulos especializados |
 
 ---
 
 ## 🛠️ Tecnologias
 
-O projeto utiliza:
-
-- **Python**
-- **Streamlit**
-- **Pandas**
-- **python-docx**
-- **pypdf**
-- **Git**
-- **GitHub**
-
-A arquitetura foi organizada de forma modular para permitir a evolução independente dos diferentes componentes de inteligência.
+- Python
+- Streamlit
+- Pandas
+- python-docx
+- pypdf
+- ReportLab
+- Git
+- GitHub
 
 ---
 
@@ -236,6 +239,7 @@ CareerCompass-AI/
 │   ├── main.py
 │   ├── coach_engine.py
 │   ├── curator_engine.py
+│   ├── pdf_engine.py
 │   ├── profile_engine.py
 │   ├── report_engine.py
 │   ├── resume_parser.py
@@ -255,60 +259,56 @@ CareerCompass-AI/
 │   └── dispatch.md
 │
 ├── AGENTS.md
-├── CareerCompass-icon.png
+├── careercompass-icon.png
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
 └── .env
 ```
 
-> O arquivo `.env` deve permanecer fora do versionamento e não deve conter credenciais públicas no repositório.
+> O arquivo `.env` deve permanecer fora do versionamento.
 
 ---
 
 ## 🚀 Como executar
 
-### 1. Clone o repositório
+Clone o repositório:
 
 ```bash
 git clone https://github.com/MCLG1661/CareerCompass-AI.git
 ```
 
-### 2. Entre na pasta
+Entre na pasta:
 
 ```bash
 cd CareerCompass-AI
 ```
 
-### 3. Crie um ambiente virtual
-
-Windows:
+Crie um ambiente virtual:
 
 ```powershell
 python -m venv .venv
 ```
 
-### 4. Ative o ambiente virtual
-
-PowerShell:
+Ative o ambiente:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-### 5. Instale as dependências
+Instale as dependências:
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 6. Execute a aplicação
+Execute a aplicação:
 
 ```powershell
 python -m streamlit run app/main.py
 ```
 
-### 7. Acesse no navegador
+Acesse:
 
 ```text
 http://localhost:8501
@@ -321,11 +321,11 @@ http://localhost:8501
 ```text
 Carregar currículo
        ↓
-Extração do conteúdo
+Resume Parser
        ↓
-Estruturação do perfil
+Profile Engine
        ↓
-Diagnóstico profissional
+Perfil profissional estruturado
        ↓
 ┌───────────────────────────────┐
 │ Radar de Oportunidades        │
@@ -334,18 +334,18 @@ Diagnóstico profissional
 │ Relatório Profissional        │
 └───────────────────────────────┘
        ↓
-Insights para tomada de decisão
+Career Assessment
+       ↓
+PDF / Markdown
 ```
-
-O mesmo perfil ativo é utilizado pelos diferentes módulos, criando continuidade entre as etapas da jornada.
 
 ---
 
 ## 🎯 Visão de produto
 
-O CareerCompass AI foi concebido como uma **Career Intelligence Platform**, e não apenas como uma ferramenta de análise de currículo.
+O CareerCompass AI foi concebido como uma **Career Intelligence Platform**, e não apenas como um analisador de currículo.
 
-A evolução do projeto busca conectar quatro dimensões principais:
+A arquitetura busca conectar quatro dimensões principais:
 
 **Perfil → Mercado → Oportunidade → Preparação**
 
@@ -355,8 +355,6 @@ Isso permite que diferentes análises compartilhem contexto e contribuam para um
 
 ## 🗺️ Roadmap
 
-Entre as evoluções previstas estão:
-
 - [x] Interface Streamlit
 - [x] Arquitetura modular
 - [x] Perfil profissional padrão
@@ -364,25 +362,26 @@ Entre as evoluções previstas estão:
 - [x] Leitura de PDF
 - [x] Leitura de DOCX
 - [x] Profile Engine
+- [x] Identificação automática do candidato
 - [x] Detecção de senioridade
 - [x] Detecção estruturada de competências
 - [x] Scout — Radar de Oportunidades
 - [x] Curator — Análise de Fit
 - [x] Coach — Simulador de Entrevistas
-- [x] Assessment profissional
+- [x] Career Assessment
+- [x] Exportação em PDF
+- [x] Exportação em Markdown
 - [x] Identidade visual própria
 - [ ] Career Fit Score multidimensional
 - [ ] Análise semântica avançada
 - [ ] Integração com modelos de IA generativa
-- [ ] Geração avançada de recomendações
 - [ ] Histórico de análises
 - [ ] Comparação entre múltiplas vagas
-- [ ] Exportação avançada de relatórios
 - [ ] Dashboard de evolução profissional
 - [ ] Persistência de candidatos
 - [ ] Autenticação de usuários
 - [ ] Deploy público
-- [ ] Camada administrativa para consultorias de carreira
+- [ ] Camada administrativa para consultorias
 
 ---
 
@@ -390,35 +389,28 @@ Entre as evoluções previstas estão:
 
 O CareerCompass AI pode evoluir para diferentes cenários de utilização:
 
-**Candidato individual**
-
+**Candidato individual**  
 Análise de currículo, identificação de oportunidades, preparação para entrevistas e planejamento profissional.
 
-**Consultoria de recolocação**
-
+**Consultoria de recolocação**  
 Assessment inicial, análise estruturada de candidatos e apoio ao processo de orientação profissional.
 
-**Career Coach**
-
+**Career Coach**  
 Ferramenta complementar para diagnóstico, preparação e acompanhamento de clientes.
 
-**Outplacement**
+**Outplacement**  
+Apoio a programas de transição e recolocação profissional.
 
-Apoio estruturado a programas de transição e recolocação profissional.
-
-**Talent & Career Intelligence**
-
+**Talent & Career Intelligence**  
 Base tecnológica para futuras aplicações relacionadas à análise de competências, mobilidade profissional e desenvolvimento de carreira.
 
 ---
 
 ## ⚠️ Limitações atuais
 
-O CareerCompass AI encontra-se em evolução.
+As análises atuais ainda utilizam principalmente regras, dicionários, evidências textuais e mecanismos determinísticos.
 
-As análises atuais são baseadas principalmente em regras, termos, evidências textuais e estruturas definidas pelos módulos do sistema.
-
-Os percentuais de aderência devem ser interpretados como **indicadores de compatibilidade do modelo**, e não como probabilidades reais de contratação ou aprovação em processos seletivos.
+Os percentuais de aderência devem ser interpretados como **indicadores do modelo**, e não como probabilidades reais de contratação ou aprovação em processos seletivos.
 
 A plataforma não substitui a avaliação de recrutadores, consultores de carreira ou profissionais de Recursos Humanos.
 
@@ -434,13 +426,11 @@ Na versão atual executada localmente, o processamento ocorre no ambiente da apl
 
 ## 📌 Status
 
-**MVP funcional em desenvolvimento**
+**MVP funcional em evolução**
 
-A plataforma já possui fluxo integrado para:
+Fluxo atual:
 
-**Currículo → Perfil estruturado → Radar → Fit → Entrevista → Assessment**
-
-O projeto continua evoluindo em direção a uma plataforma mais robusta de **Career Intelligence**.
+**Currículo → Perfil estruturado → Radar → Fit → Entrevista → Assessment → PDF**
 
 ---
 
@@ -453,7 +443,7 @@ Projeto desenvolvido como iniciativa de aplicação de **Inteligência Artificia
 ---
 
 <p align="center">
-  <img src="CareerCompass-icon.png" alt="CareerCompass AI" width="80">
+  <img src="careercompass-icon.png" alt="CareerCompass AI" width="80">
 </p>
 
 <p align="center">

@@ -1,9 +1,14 @@
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image
 
 from coach_engine import evaluate_answer, get_step
 from curator_engine import analyze_compatibility
+from pdf_engine import build_career_report_pdf
+from profile_engine import build_professional_profile
+from report_engine import build_career_report, report_to_markdown
+from resume_parser import ResumeParserError, extract_resume_text
 from scout_engine import discover_roles
 
 
@@ -13,14 +18,22 @@ from scout_engine import discover_roles
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 PROFILE_PATH = ROOT_DIR / "data" / "user-profile.md"
-ICON_PATH = ROOT_DIR / "CareerCompass-icon.png"
+ICON_PATH = ROOT_DIR / "careercompass-icon.png"
+
+PAGE_ICON = (
+    Image.open(ICON_PATH)
+    if ICON_PATH.exists()
+    else "🧭"
+)
 
 
-def load_profile() -> str:
+def load_default_profile() -> str:
     if not PROFILE_PATH.exists():
         return "Perfil profissional não encontrado."
 
-    return PROFILE_PATH.read_text(encoding="utf-8")
+    return PROFILE_PATH.read_text(
+        encoding="utf-8"
+    )
 
 
 def reset_coach():
@@ -35,9 +48,33 @@ def reset_coach():
             del st.session_state[key]
 
 
+def format_items(
+    items: list[str],
+) -> str:
+
+    if not items:
+        return "Não identificado"
+
+    return " • ".join(items)
+
+
+def safe_filename(
+    name: str,
+) -> str:
+
+    cleaned = "".join(
+        char
+        for char in name
+        if char.isalnum()
+        or char in ("-", "_")
+    )
+
+    return cleaned or "candidato"
+
+
 st.set_page_config(
     page_title="CareerCompass AI",
-    page_icon="🧭",
+    page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -59,8 +96,32 @@ if "coach_answers" not in st.session_state:
 if "coach_feedback" not in st.session_state:
     st.session_state.coach_feedback = {}
 
+if "resume_text" not in st.session_state:
+    st.session_state.resume_text = None
 
-profile = load_profile()
+if "resume_name" not in st.session_state:
+    st.session_state.resume_name = None
+
+if "scout_results" not in st.session_state:
+    st.session_state.scout_results = None
+
+if "career_report" not in st.session_state:
+    st.session_state.career_report = None
+
+if "career_report_pdf" not in st.session_state:
+    st.session_state.career_report_pdf = None
+
+if "candidate_name_input" not in st.session_state:
+    st.session_state.candidate_name_input = ""
+
+
+default_profile = load_default_profile()
+
+profile = (
+    st.session_state.resume_text
+    if st.session_state.resume_text
+    else default_profile
+)
 
 
 # =========================================================
@@ -71,7 +132,6 @@ st.markdown(
     """
     <style>
 
-    /* Base */
     .stApp {
         background:
             radial-gradient(
@@ -88,7 +148,6 @@ st.markdown(
         padding-bottom: 4rem;
     }
 
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background:
             linear-gradient(
@@ -118,7 +177,6 @@ st.markdown(
         border-color: rgba(255,255,255,0.22);
     }
 
-    /* Tipografia */
     h1, h2, h3 {
         color: #111827;
         letter-spacing: -0.02em;
@@ -128,7 +186,6 @@ st.markdown(
         color: #4b5563;
     }
 
-    /* Botões */
     .stButton button {
         border-radius: 10px;
         min-height: 44px;
@@ -140,14 +197,13 @@ st.markdown(
         transform: translateY(-1px);
     }
 
-    /* Inputs */
-    .stTextArea textarea {
+    .stTextArea textarea,
+    .stTextInput input {
         border-radius: 12px;
         border: 1px solid #d8deea;
         background: white;
     }
 
-    /* Métricas */
     div[data-testid="stMetric"] {
         background: white;
         border: 1px solid #e3e8f0;
@@ -156,7 +212,6 @@ st.markdown(
         box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
     }
 
-    /* Containers */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: white;
         border-radius: 16px;
@@ -164,7 +219,6 @@ st.markdown(
         box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
     }
 
-    /* Hero */
     .cc-hero {
         padding: 30px 34px;
         border-radius: 20px;
@@ -203,7 +257,6 @@ st.markdown(
         line-height: 1.6;
     }
 
-    /* Status pill */
     .cc-status {
         display: inline-block;
         background: #e8fff2;
@@ -216,7 +269,6 @@ st.markdown(
         margin-top: 14px;
     }
 
-    /* Card textual */
     .cc-card-title {
         font-size: 1.08rem;
         font-weight: 700;
@@ -240,7 +292,6 @@ st.markdown(
         margin-bottom: 10px;
     }
 
-    /* Module header */
     .cc-module-header {
         padding: 22px 26px;
         background: white;
@@ -259,7 +310,15 @@ st.markdown(
         margin-bottom: 0;
     }
 
-    /* Footer */
+    .cc-summary {
+        padding: 20px 22px;
+        background: #f8faff;
+        border: 1px solid #dbe4ff;
+        border-radius: 14px;
+        color: #344054;
+        line-height: 1.7;
+    }
+
     .cc-footer {
         color: #98a2b3;
         text-align: center;
@@ -267,6 +326,38 @@ st.markdown(
         margin-top: 42px;
         padding-top: 20px;
         border-top: 1px solid #e8ecf2;
+    }
+
+    section[data-testid="stSidebar"]
+    [data-testid="stFileUploaderDropzone"] {
+        background: #ffffff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+    }
+
+    section[data-testid="stSidebar"]
+    [data-testid="stFileUploaderDropzone"] * {
+        color: #334155 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [data-testid="stFileUploaderDropzone"] button {
+        background: #f8fafc !important;
+        color: #111827 !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [data-testid="stFileUploaderDropzone"] button:hover {
+        background: #eef2f7 !important;
+        color: #111827 !important;
+        border-color: #94a3b8 !important;
+        transform: none;
+    }
+
+    section[data-testid="stSidebar"]
+    [data-testid="stFileUploader"] small {
+        color: #64748b !important;
     }
 
     </style>
@@ -320,20 +411,106 @@ with st.sidebar:
         st.session_state.selected_flow = "coach"
         st.rerun()
 
+    if st.button(
+        "📄  Relatório Profissional",
+        use_container_width=True,
+    ):
+        st.session_state.selected_flow = "report"
+        st.rerun()
+
     st.markdown("---")
 
     st.markdown("### Perfil")
 
-    st.success("Perfil profissional carregado")
+    uploaded_resume = st.file_uploader(
+        "Carregar currículo",
+        type=["pdf", "docx"],
+        help="Envie um currículo em PDF ou DOCX.",
+    )
 
-    with st.expander("Visualizar perfil"):
-        st.markdown(profile)
+    if uploaded_resume is not None:
+        try:
+            extracted_text = extract_resume_text(
+                uploaded_resume.name,
+                uploaded_resume.getvalue(),
+            )
+
+            if (
+                st.session_state.resume_name != uploaded_resume.name
+                or st.session_state.resume_text != extracted_text
+            ):
+                st.session_state.resume_text = extracted_text
+                st.session_state.resume_name = uploaded_resume.name
+                st.session_state.scout_results = None
+                st.session_state.career_report = None
+                st.session_state.career_report_pdf = None
+                st.session_state.candidate_name_input = ""
+
+                reset_coach()
+
+            profile = st.session_state.resume_text
+
+            st.success(
+                "Currículo carregado com sucesso"
+            )
+
+            st.caption(
+                f"Arquivo ativo: {uploaded_resume.name}"
+            )
+
+        except ResumeParserError as exc:
+            st.error(str(exc))
+
+    if st.session_state.resume_text:
+
+        st.info(
+            "Perfil em uso: currículo enviado"
+        )
+
+        if st.button(
+            "Usar perfil padrão",
+            use_container_width=True,
+        ):
+            st.session_state.resume_text = None
+            st.session_state.resume_name = None
+            st.session_state.scout_results = None
+            st.session_state.career_report = None
+            st.session_state.career_report_pdf = None
+            st.session_state.candidate_name_input = ""
+
+            reset_coach()
+            st.rerun()
+
+    else:
+        st.success(
+            "Perfil padrão carregado"
+        )
+
+    with st.expander(
+        "Visualizar perfil em uso"
+    ):
+        st.text(profile)
 
     st.markdown("---")
 
     st.caption(
-        "Maestro AI coordena os módulos "
-        "especializados da plataforma."
+        "Maestro AI coordena os módulos especializados da plataforma."
+    )
+
+
+# =========================================================
+# PROFILE ENGINE
+# =========================================================
+
+structured_profile = build_professional_profile(
+    profile
+)
+
+if not st.session_state.candidate_name_input:
+    st.session_state.candidate_name_input = (
+        structured_profile.candidate_name
+        if structured_profile.candidate_name
+        else "Candidato"
     )
 
 
@@ -342,14 +519,12 @@ with st.sidebar:
 # =========================================================
 
 st.markdown(
-    """
-<div class="cc-hero">
+    """<div class="cc-hero">
 <div class="cc-eyebrow">CAREER INTELLIGENCE PLATFORM</div>
 <h1>CareerCompass AI</h1>
 <p>Transforme experiência profissional, competências e objetivos de carreira em decisões mais estruturadas para recolocação, desenvolvimento e processos seletivos.</p>
 <div class="cc-status">● Perfil ativo</div>
-</div>
-    """,
+</div>""",
     unsafe_allow_html=True,
 )
 
@@ -360,28 +535,34 @@ st.markdown(
 
 if st.session_state.selected_flow == "home":
 
-    st.markdown("## Seu centro de inteligência de carreira")
+    st.markdown(
+        "## Seu centro de inteligência de carreira"
+    )
 
     st.caption(
         "Escolha o módulo mais adequado ao momento da sua jornada profissional."
     )
 
-    col1, col2, col3 = st.columns(3)
+    if st.session_state.resume_text:
+        st.success(
+            f"Currículo ativo: {st.session_state.resume_name}"
+        )
+    else:
+        st.info(
+            "A plataforma está utilizando o perfil profissional padrão."
+        )
 
-    # Scout
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-
         with st.container(border=True):
 
             st.markdown(
                 """
                 <div class="cc-agent-label">Scout</div>
-                <div class="cc-card-title">
-                    🔎 Radar de Oportunidades
-                </div>
+                <div class="cc-card-title">🔎 Radar de Oportunidades</div>
                 <div class="cc-card-text">
-                    Descubra funções e caminhos profissionais com maior
-                    aderência às competências do seu perfil.
+                    Descubra funções profissionais com maior aderência ao seu perfil.
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -398,20 +579,15 @@ if st.session_state.selected_flow == "home":
                 st.session_state.selected_flow = "scout"
                 st.rerun()
 
-    # Curator
     with col2:
-
         with st.container(border=True):
 
             st.markdown(
                 """
                 <div class="cc-agent-label">Curator</div>
-                <div class="cc-card-title">
-                    🎯 Análise de Fit Profissional
-                </div>
+                <div class="cc-card-title">🎯 Análise de Fit</div>
                 <div class="cc-card-text">
-                    Compare uma oportunidade específica com seu perfil
-                    e identifique aderências e lacunas.
+                    Compare uma vaga com seu perfil e identifique aderências e gaps.
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -427,20 +603,15 @@ if st.session_state.selected_flow == "home":
                 st.session_state.selected_flow = "curator"
                 st.rerun()
 
-    # Coach
     with col3:
-
         with st.container(border=True):
 
             st.markdown(
                 """
                 <div class="cc-agent-label">Coach</div>
-                <div class="cc-card-title">
-                    🎤 Simulador de Entrevistas
-                </div>
+                <div class="cc-card-title">🎤 Simulador de Entrevistas</div>
                 <div class="cc-card-text">
-                    Pratique respostas em uma entrevista estruturada
-                    e receba feedback sobre sua comunicação.
+                    Pratique respostas e receba feedback estruturado.
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -456,63 +627,158 @@ if st.session_state.selected_flow == "home":
                 st.session_state.selected_flow = "coach"
                 st.rerun()
 
-    st.markdown("")
+    with col4:
+        with st.container(border=True):
 
-    st.markdown("### Visão da jornada")
+            st.markdown(
+                """
+                <div class="cc-agent-label">Assessment</div>
+                <div class="cc-card-title">📄 Relatório Profissional</div>
+                <div class="cc-card-text">
+                    Consolide o diagnóstico do candidato em um relatório estruturado.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-    metric1, metric2, metric3, metric4 = st.columns(4)
+            st.markdown("")
 
-    with metric1:
-        st.metric(
-            "Módulos ativos",
-            "3",
-        )
-
-    with metric2:
-        st.metric(
-            "Perfil",
-            "Pronto",
-        )
-
-    with metric3:
-        st.metric(
-            "Entrevista",
-            "6 etapas",
-        )
-
-    with metric4:
-        st.metric(
-            "Status",
-            "MVP v0.2",
-        )
+            if st.button(
+                "Gerar assessment →",
+                key="home_report",
+                use_container_width=True,
+            ):
+                st.session_state.selected_flow = "report"
+                st.rerun()
 
     st.markdown("")
+
+    st.markdown(
+        "## Diagnóstico do Perfil Profissional"
+    )
+
+    st.caption(
+        "Leitura estruturada do perfil ativo realizada pelo Profile Engine."
+    )
+
+    d1, d2, d3, d4 = st.columns(4)
+
+    with d1:
+        st.metric(
+            "Senioridade",
+            structured_profile.seniority,
+        )
+
+    with d2:
+        st.metric(
+            "Áreas identificadas",
+            len(structured_profile.areas),
+        )
+
+    with d3:
+        st.metric(
+            "Hard Skills",
+            len(structured_profile.hard_skills),
+        )
+
+    with d4:
+        st.metric(
+            "Ferramentas",
+            len(structured_profile.tools),
+        )
 
     with st.container(border=True):
 
-        st.markdown("### Como o CareerCompass AI trabalha")
+        left, right = st.columns(2)
 
-        process1, process2, process3 = st.columns(3)
+        with left:
 
-        with process1:
-            st.markdown("**1. Compreende**")
-            st.write(
-                "O perfil profissional funciona como base "
-                "de contexto para as análises."
+            st.markdown(
+                "### Perfil de atuação"
             )
 
-        with process2:
-            st.markdown("**2. Analisa**")
-            st.write(
-                "Cada módulo especializado processa uma "
-                "necessidade diferente da jornada."
+            st.markdown(
+                "**Candidato identificado**"
             )
 
-        with process3:
-            st.markdown("**3. Orienta**")
             st.write(
-                "Os resultados são transformados em informações "
-                "práticas para apoiar decisões."
+                structured_profile.candidate_name
+            )
+
+            st.markdown(
+                "**Áreas profissionais**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.areas
+                )
+            )
+
+            st.markdown(
+                "**Hard Skills**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.hard_skills
+                )
+            )
+
+            st.markdown(
+                "**Ferramentas e tecnologias**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.tools
+                )
+            )
+
+        with right:
+
+            st.markdown(
+                "### Competências complementares"
+            )
+
+            st.markdown(
+                "**Gestão e liderança**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.management_skills
+                )
+            )
+
+            st.markdown(
+                "**Metodologias**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.methodologies
+                )
+            )
+
+            st.markdown(
+                "**Idiomas identificados**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.languages
+                )
+            )
+
+            st.markdown(
+                "**Evidências de resultados**"
+            )
+
+            st.write(
+                format_items(
+                    structured_profile.evidence_terms
+                )
             )
 
 
@@ -529,102 +795,127 @@ elif st.session_state.selected_flow == "scout":
             <h2>🔎 Radar de Oportunidades</h2>
             <p>
                 Identifique funções profissionais com maior aderência
-                às competências e conhecimentos registrados no seu perfil.
+                às competências e conhecimentos registrados no perfil ativo.
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    col_intro, col_action = st.columns([2.2, 1])
+    if st.session_state.resume_text:
+        st.success(
+            f"Analisando currículo: {st.session_state.resume_name}"
+        )
 
-    with col_intro:
-
-        st.markdown("### Descubra onde seu perfil pode gerar valor")
+    with st.expander(
+        "Ver diagnóstico utilizado pelo Scout"
+    ):
 
         st.write(
-            "O Scout analisa as competências presentes no perfil "
-            "e cria um ranking inicial de caminhos profissionais."
+            f"**Candidato:** {structured_profile.candidate_name}"
         )
 
-    with col_action:
-
-        map_roles = st.button(
-            "Mapear oportunidades",
-            type="primary",
-            use_container_width=True,
+        st.write(
+            f"**Senioridade:** {structured_profile.seniority}"
         )
 
-    if map_roles:
+        st.write(
+            f"**Áreas:** {format_items(structured_profile.areas)}"
+        )
 
-        results = discover_roles(profile)
+        st.write(
+            f"**Hard Skills:** "
+            f"{format_items(structured_profile.hard_skills)}"
+        )
 
-        if results:
+        st.write(
+            f"**Gestão:** "
+            f"{format_items(structured_profile.management_skills)}"
+        )
 
-            st.markdown("### Ranking de aderência")
+    if st.button(
+        "Mapear oportunidades",
+        type="primary",
+        use_container_width=True,
+    ):
 
-            top_result = results[0]
+        st.session_state.scout_results = discover_roles(
+            profile
+        )
 
-            m1, m2, m3 = st.columns(3)
+        st.session_state.career_report = None
+        st.session_state.career_report_pdf = None
 
-            with m1:
-                st.metric(
-                    "Melhor aderência",
-                    f"{top_result.score}%",
-                )
+    results = st.session_state.scout_results
 
-            with m2:
-                st.metric(
-                    "Função prioritária",
-                    top_result.title,
-                )
+    if results:
 
-            with m3:
-                st.metric(
-                    "Funções analisadas",
-                    len(results),
-                )
+        st.markdown(
+            "### Ranking de aderência"
+        )
 
-            st.markdown("")
+        top_result = results[0]
 
-            for position, result in enumerate(
-                results,
-                start=1,
+        m1, m2, m3 = st.columns(3)
+
+        with m1:
+            st.metric(
+                "Melhor aderência",
+                f"{top_result.score}%",
+            )
+
+        with m2:
+            st.metric(
+                "Função prioritária",
+                top_result.title,
+            )
+
+        with m3:
+            st.metric(
+                "Funções analisadas",
+                len(results),
+            )
+
+        st.markdown("")
+
+        for position, result in enumerate(
+            results,
+            start=1,
+        ):
+
+            with st.container(
+                border=True
             ):
 
-                with st.container(border=True):
+                col_rank, col_info, col_score = st.columns(
+                    [0.4, 2.5, 1]
+                )
 
-                    col_rank, col_info, col_score = st.columns(
-                        [0.4, 2.5, 1]
+                with col_rank:
+                    st.markdown(
+                        f"## {position}"
                     )
 
-                    with col_rank:
-                        st.markdown(
-                            f"## {position}"
-                        )
-
-                    with col_info:
-                        st.markdown(
-                            f"### {result.title}"
-                        )
-
-                        st.write(
-                            f"**{result.level}**"
-                        )
-
-                        st.caption(
-                            result.reason
-                        )
-
-                    with col_score:
-                        st.metric(
-                            "Aderência",
-                            f"{result.score}%",
-                        )
-
-                    st.progress(
-                        result.score / 100
+                with col_info:
+                    st.markdown(
+                        f"### {result.title}"
                     )
+                    st.write(
+                        f"**{result.level}**"
+                    )
+                    st.caption(
+                        result.reason
+                    )
+
+                with col_score:
+                    st.metric(
+                        "Aderência",
+                        f"{result.score}%",
+                    )
+
+                st.progress(
+                    result.score / 100
+                )
 
 
 # =========================================================
@@ -639,7 +930,7 @@ elif st.session_state.selected_flow == "curator":
             <div class="cc-agent-label">Curator</div>
             <h2>🎯 Análise de Fit Profissional</h2>
             <p>
-                Compare seu perfil com os requisitos de uma oportunidade
+                Compare o perfil ativo com os requisitos de uma oportunidade
                 e obtenha uma leitura objetiva de aderências e gaps.
             </p>
         </div>
@@ -647,13 +938,24 @@ elif st.session_state.selected_flow == "curator":
         unsafe_allow_html=True,
     )
 
-    left, right = st.columns([1.55, 1])
+    if st.session_state.resume_text:
+        st.success(
+            f"Perfil analisado: {st.session_state.resume_name}"
+        )
+
+    left, right = st.columns(
+        [1.55, 1]
+    )
 
     with left:
 
-        with st.container(border=True):
+        with st.container(
+            border=True
+        ):
 
-            st.markdown("### Oportunidade")
+            st.markdown(
+                "### Oportunidade"
+            )
 
             job_description = st.text_area(
                 "Descrição da vaga",
@@ -674,24 +976,37 @@ elif st.session_state.selected_flow == "curator":
 
     with right:
 
-        with st.container(border=True):
-
-            st.markdown("### O que será analisado")
+        with st.container(
+            border=True
+        ):
 
             st.markdown(
-                """
-                **Competências técnicas**
-                Ferramentas, conhecimentos e tecnologias.
+                "### Perfil profissional identificado"
+            )
 
-                **Aderência profissional**
-                Correspondência entre perfil e função.
+            st.write(
+                f"**Candidato:** "
+                f"{structured_profile.candidate_name}"
+            )
 
-                **Pontos sem evidência**
-                Requisitos da vaga ainda não demonstrados no perfil.
+            st.write(
+                f"**Senioridade:** "
+                f"{structured_profile.seniority}"
+            )
 
-                **Compatibilidade geral**
-                Indicador resumido para apoiar a decisão de candidatura.
-                """
+            st.write(
+                f"**Áreas:** "
+                f"{format_items(structured_profile.areas)}"
+            )
+
+            st.write(
+                f"**Hard Skills:** "
+                f"{format_items(structured_profile.hard_skills)}"
+            )
+
+            st.write(
+                f"**Ferramentas:** "
+                f"{format_items(structured_profile.tools)}"
             )
 
     if analyze:
@@ -709,7 +1024,9 @@ elif st.session_state.selected_flow == "curator":
                 job_description=job_description,
             )
 
-            st.markdown("### Diagnóstico")
+            st.markdown(
+                "### Diagnóstico"
+            )
 
             metric1, metric2, metric3 = st.columns(3)
 
@@ -737,38 +1054,49 @@ elif st.session_state.selected_flow == "curator":
 
             with col_strengths:
 
-                with st.container(border=True):
+                with st.container(
+                    border=True
+                ):
 
-                    st.markdown("### ✓ Aderências")
+                    st.markdown(
+                        "### ✓ Aderências"
+                    )
 
                     if result["strengths"]:
 
                         for skill in result["strengths"]:
-                            st.success(skill)
+                            st.success(
+                                skill
+                            )
 
                     else:
 
                         st.info(
-                            "Nenhuma aderência técnica foi "
-                            "identificada nos termos analisados."
+                            "Nenhuma aderência técnica foi identificada "
+                            "nos termos analisados."
                         )
 
             with col_gaps:
 
-                with st.container(border=True):
+                with st.container(
+                    border=True
+                ):
 
-                    st.markdown("### ⚠ Pontos sem evidência")
+                    st.markdown(
+                        "### ⚠ Pontos sem evidência"
+                    )
 
                     if result["gaps"]:
 
                         for skill in result["gaps"]:
-                            st.warning(skill)
+                            st.warning(
+                                skill
+                            )
 
                     else:
 
                         st.success(
-                            "Nenhuma lacuna identificada nas "
-                            "competências analisadas."
+                            "Nenhuma lacuna identificada nas competências analisadas."
                         )
 
             with st.expander(
@@ -776,7 +1104,6 @@ elif st.session_state.selected_flow == "curator":
             ):
 
                 for item in result["matches"]:
-
                     st.write(
                         f"**{item.skill}:** {item.status}"
                     )
@@ -802,10 +1129,48 @@ elif st.session_state.selected_flow == "coach":
         unsafe_allow_html=True,
     )
 
-    step_number = st.session_state.coach_step
-    step = get_step(step_number)
+    if st.session_state.resume_text:
+        st.success(
+            f"Contexto da entrevista: {st.session_state.resume_name}"
+        )
 
-    progress_col, status_col = st.columns([3, 1])
+    with st.expander(
+        "Ver contexto profissional da entrevista"
+    ):
+
+        st.write(
+            f"**Candidato:** "
+            f"{structured_profile.candidate_name}"
+        )
+
+        st.write(
+            f"**Senioridade:** "
+            f"{structured_profile.seniority}"
+        )
+
+        st.write(
+            f"**Áreas de atuação:** "
+            f"{format_items(structured_profile.areas)}"
+        )
+
+        st.write(
+            f"**Competências:** "
+            f"{format_items(structured_profile.hard_skills)}"
+        )
+
+        st.write(
+            f"**Gestão:** "
+            f"{format_items(structured_profile.management_skills)}"
+        )
+
+    step_number = st.session_state.coach_step
+    step = get_step(
+        step_number
+    )
+
+    progress_col, status_col = st.columns(
+        [3, 1]
+    )
 
     with progress_col:
         st.progress(
@@ -817,7 +1182,9 @@ elif st.session_state.selected_flow == "coach":
             f"Etapa {step_number} de 6"
         )
 
-    with st.container(border=True):
+    with st.container(
+        border=True
+    ):
 
         st.markdown(
             f"### {step.title}"
@@ -837,7 +1204,9 @@ elif st.session_state.selected_flow == "coach":
             ),
         )
 
-        col_evaluate, col_reset = st.columns([2, 1])
+        col_evaluate, col_reset = st.columns(
+            [2, 1]
+        )
 
         with col_evaluate:
 
@@ -853,6 +1222,7 @@ elif st.session_state.selected_flow == "coach":
                 "Reiniciar simulação",
                 use_container_width=True,
             ):
+
                 reset_coach()
                 st.rerun()
 
@@ -884,7 +1254,9 @@ elif st.session_state.selected_flow == "coach":
 
     if feedback:
 
-        st.markdown("### Feedback do Coach")
+        st.markdown(
+            "### Feedback do Coach"
+        )
 
         metric1, metric2 = st.columns(2)
 
@@ -900,7 +1272,9 @@ elif st.session_state.selected_flow == "coach":
                 f"{step_number}/6",
             )
 
-        with st.container(border=True):
+        with st.container(
+            border=True
+        ):
 
             st.success(
                 f"**Clareza:** {feedback['clarity']}"
@@ -933,7 +1307,9 @@ elif st.session_state.selected_flow == "coach":
                 "Simulação concluída."
             )
 
-            with st.container(border=True):
+            with st.container(
+                border=True
+            ):
 
                 st.markdown(
                     "### Resultado da simulação"
@@ -958,13 +1334,395 @@ elif st.session_state.selected_flow == "coach":
 
 
 # =========================================================
+# RELATÓRIO PROFISSIONAL
+# =========================================================
+
+elif st.session_state.selected_flow == "report":
+
+    st.markdown(
+        """
+        <div class="cc-module-header">
+            <div class="cc-agent-label">Career Assessment</div>
+            <h2>📄 Relatório Profissional</h2>
+            <p>
+                Consolide as principais informações identificadas no currículo
+                e nas análises realizadas pelo CareerCompass AI.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.resume_text:
+        st.success(
+            f"Fonte ativa: {st.session_state.resume_name}"
+        )
+    else:
+        st.info(
+            "O relatório será gerado a partir do perfil profissional padrão."
+        )
+
+    st.markdown(
+        "### Identificação do candidato"
+    )
+
+    st.caption(
+        "O CareerCompass sugere o nome identificado no currículo. "
+        "Revise ou edite antes de gerar o relatório."
+    )
+
+    candidate_name = st.text_input(
+        "Nome do candidato",
+        key="candidate_name_input",
+    )
+
+    if (
+        structured_profile.candidate_name
+        and structured_profile.candidate_name != "Candidato"
+    ):
+
+        st.caption(
+            f"Nome detectado automaticamente: "
+            f"{structured_profile.candidate_name}"
+        )
+
+    if st.session_state.scout_results:
+
+        st.success(
+            "Resultados do Radar de Oportunidades disponíveis "
+            "para inclusão no relatório."
+        )
+
+    else:
+
+        st.info(
+            "O Radar de Oportunidades ainda não foi executado nesta sessão. "
+            "O relatório pode ser gerado mesmo assim."
+        )
+
+    generate_report = st.button(
+        "Gerar relatório profissional",
+        type="primary",
+        use_container_width=True,
+    )
+
+    if generate_report:
+
+        source_name = (
+            st.session_state.resume_name
+            if st.session_state.resume_name
+            else "Perfil profissional padrão"
+        )
+
+        report = build_career_report(
+            structured_profile=structured_profile,
+            candidate_name=(
+                candidate_name.strip()
+                if candidate_name.strip()
+                else None
+            ),
+            source_name=source_name,
+            scout_results=st.session_state.scout_results,
+        )
+
+        st.session_state.career_report = report
+
+        try:
+
+            st.session_state.career_report_pdf = (
+                build_career_report_pdf(
+                    report
+                )
+            )
+
+        except Exception as exc:
+
+            st.session_state.career_report_pdf = None
+
+            st.error(
+                "O relatório foi gerado, mas ocorreu um erro "
+                "durante a criação do PDF."
+            )
+
+            st.caption(
+                f"Detalhe técnico: {exc}"
+            )
+
+    report = st.session_state.career_report
+
+    if report:
+
+        st.markdown(
+            "## Career Assessment Report"
+        )
+
+        m1, m2, m3 = st.columns(3)
+
+        with m1:
+            st.metric(
+                "Senioridade",
+                report.seniority,
+            )
+
+        with m2:
+            st.metric(
+                "Áreas identificadas",
+                len(report.areas),
+            )
+
+        with m3:
+            st.metric(
+                "Caminhos sugeridos",
+                len(report.recommended_roles),
+            )
+
+        with st.container(
+            border=True
+        ):
+
+            st.markdown(
+                "### Resumo do candidato"
+            )
+
+            st.write(
+                f"**Candidato:** {report.candidate_name}"
+            )
+
+            st.write(
+                f"**Fonte analisada:** {report.source_name}"
+            )
+
+            st.write(
+                f"**Data da análise:** {report.generated_at}"
+            )
+
+            st.write(
+                f"**Senioridade identificada:** {report.seniority}"
+            )
+
+        st.markdown(
+            "### Resumo executivo"
+        )
+
+        st.markdown(
+            f"""<div class="cc-summary">
+{report.executive_summary}
+</div>""",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("")
+
+        left, right = st.columns(2)
+
+        with left:
+
+            with st.container(
+                border=True
+            ):
+
+                st.markdown(
+                    "### Principais competências"
+                )
+
+                st.markdown(
+                    "**Áreas**"
+                )
+
+                st.write(
+                    format_items(
+                        report.areas
+                    )
+                )
+
+                st.markdown(
+                    "**Hard Skills**"
+                )
+
+                st.write(
+                    format_items(
+                        report.hard_skills
+                    )
+                )
+
+                st.markdown(
+                    "**Ferramentas**"
+                )
+
+                st.write(
+                    format_items(
+                        report.tools
+                    )
+                )
+
+                st.markdown(
+                    "**Gestão**"
+                )
+
+                st.write(
+                    format_items(
+                        report.management_skills
+                    )
+                )
+
+        with right:
+
+            with st.container(
+                border=True
+            ):
+
+                st.markdown(
+                    "### Diagnóstico"
+                )
+
+                st.markdown(
+                    "**Principais forças**"
+                )
+
+                for item in report.strengths:
+
+                    st.success(
+                        item
+                    )
+
+                st.markdown(
+                    "**Pontos de atenção**"
+                )
+
+                for item in report.attention_points:
+
+                    st.warning(
+                        item
+                    )
+
+        if report.recommended_roles:
+
+            st.markdown(
+                "### Caminhos profissionais"
+            )
+
+            for position, role in enumerate(
+                report.recommended_roles,
+                start=1,
+            ):
+
+                with st.container(
+                    border=True
+                ):
+
+                    c1, c2 = st.columns(
+                        [3, 1]
+                    )
+
+                    with c1:
+
+                        st.markdown(
+                            f"### {position}. {role['title']}"
+                        )
+
+                        st.write(
+                            role["level"]
+                        )
+
+                        if role["reason"]:
+
+                            st.caption(
+                                role["reason"]
+                            )
+
+                    with c2:
+
+                        st.metric(
+                            "Aderência",
+                            f"{role['score']}%",
+                        )
+
+        st.markdown(
+            "### Recomendações"
+        )
+
+        with st.container(
+            border=True
+        ):
+
+            for recommendation in report.recommendations:
+
+                st.write(
+                    f"• {recommendation}"
+                )
+
+        markdown_report = report_to_markdown(
+            report
+        )
+
+        with st.expander(
+            "Visualizar relatório completo em Markdown"
+        ):
+
+            st.markdown(
+                markdown_report
+            )
+
+        st.markdown(
+            "### Exportar relatório"
+        )
+
+        export_col1, export_col2 = st.columns(2)
+
+        with export_col1:
+
+            if st.session_state.career_report_pdf:
+
+                filename = (
+                    "career-assessment-"
+                    + safe_filename(
+                        report.candidate_name
+                    )
+                    + ".pdf"
+                )
+
+                st.download_button(
+                    label="⬇ Baixar relatório em PDF",
+                    data=st.session_state.career_report_pdf,
+                    file_name=filename,
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary",
+                )
+
+            else:
+
+                st.warning(
+                    "PDF ainda não disponível para este relatório."
+                )
+
+        with export_col2:
+
+            markdown_filename = (
+                "career-assessment-"
+                + safe_filename(
+                    report.candidate_name
+                )
+                + ".md"
+            )
+
+            st.download_button(
+                label="⬇ Baixar relatório em Markdown",
+                data=markdown_report,
+                file_name=markdown_filename,
+                mime="text/markdown",
+                use_container_width=True,
+            )
+
+
+# =========================================================
 # FOOTER
 # =========================================================
 
 st.markdown(
     """
     <div class="cc-footer">
-        CareerCompass AI · Career Intelligence Platform · MVP v0.2
+        CareerCompass AI · Career Intelligence Platform
     </div>
     """,
     unsafe_allow_html=True,
