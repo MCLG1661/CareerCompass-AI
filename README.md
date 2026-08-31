@@ -89,6 +89,8 @@ CareerCompass-AI/
 ├── README.md
 └── requirements.txt
 
+```
+
 ## Tecnologias
 
 Python
