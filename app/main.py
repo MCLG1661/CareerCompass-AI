@@ -88,7 +88,7 @@ st.set_page_config(
     page_title="CareerCompass AI",
     page_icon=PAGE_ICON,
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -161,379 +161,323 @@ profile = (
 
 
 # =========================================================
-# IDENTIDADE VISUAL
+# IDENTIDADE VISUAL — CAREERCOMPASS AI 5.0
 # =========================================================
 
 st.markdown(
     """
-    <style>
+<style>
+:root{
+    --bg:#07111f;
+    --bg2:#0a1628;
+    --panel:#0d1b2e;
+    --panel2:#10223a;
+    --border:rgba(255,255,255,.10);
+    --text:#f4f8ff;
+    --muted:#91a0b5;
+    --blue:#2ea6ff;
+    --violet:#7866ff;
+    --green:#19c37d;
+    --amber:#f0a63a;
+}
+html,body,[class*="css"]{
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.stApp{
+    background:
+        radial-gradient(circle at 90% 0%,rgba(46,166,255,.12),transparent 25%),
+        radial-gradient(circle at 70% 5%,rgba(120,102,255,.09),transparent 19%),
+        linear-gradient(180deg,#06101d 0%,#07111f 50%,#081423 100%);
+    color:var(--text);
+}
+.block-container{
+    max-width:1580px;
+    padding-top:.55rem;
+    padding-left:1.7rem;
+    padding-right:1.7rem;
+    padding-bottom:4rem;
+}
+section[data-testid="stSidebar"]{display:none!important;}
+[data-testid="collapsedControl"]{display:none!important;}
+header[data-testid="stHeader"]{background:transparent;}
+#MainMenu{visibility:hidden;}
+footer{visibility:hidden;}
 
-    .stApp {
-        background:
-            radial-gradient(
-                circle at top right,
-                rgba(86, 115, 255, 0.08),
-                transparent 28%
-            ),
-            #f7f9fc;
-    }
+h1,h2,h3,h4{color:var(--text)!important;letter-spacing:-.035em;}
+p,li,label{color:#b2bfd0!important;}
+small{color:#7f90a7!important;}
 
-    .block-container {
-        max-width: 1380px;
-        padding-top: 2rem;
-        padding-bottom: 4rem;
-    }
+.stButton button{
+    min-height:42px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:#0e1d31;
+    color:#e7effa;
+    font-weight:650;
+    transition:.18s ease;
+}
+.stButton button:hover{
+    transform:translateY(-1px);
+    border-color:rgba(84,185,255,.45);
+    background:#112541;
+    box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+.stButton button[kind="primary"]{
+    background:linear-gradient(135deg,#2f6dff 0%,#1db8ff 100%);
+    border:none;
+    box-shadow:0 12px 26px rgba(35,117,255,.28);
+}
+.stTextArea textarea,.stTextInput input{
+    background:#0b1829!important;
+    color:#eef5ff!important;
+    border:1px solid var(--border)!important;
+    border-radius:11px!important;
+}
+[data-testid="stFileUploaderDropzone"]{
+    background:#0b1829!important;
+    border:1px dashed rgba(255,255,255,.18)!important;
+    border-radius:12px!important;
+}
+[data-testid="stFileUploaderDropzone"] *{color:#c8d3e3!important;}
+[data-testid="stFileUploaderDropzone"] button{
+    background:#10223a!important;
+    color:#eef5ff!important;
+    border:1px solid var(--border)!important;
+}
+[data-testid="stAlert"]{border-radius:11px!important;}
+div[data-testid="stVerticalBlockBorderWrapper"]{
+    background:linear-gradient(180deg,#0d1b2e 0%,#0b1829 100%);
+    border:1px solid var(--border)!important;
+    border-radius:15px!important;
+    box-shadow:0 14px 34px rgba(0,0,0,.16);
+}
+div[data-testid="stMetric"]{
+    background:#0d1b2e;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:17px 18px;
+}
+div[data-testid="stMetric"] label{
+    color:#8190a4!important;
+    font-size:.70rem!important;
+    font-weight:800!important;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"]{
+    color:#f4f8ff!important;
+    letter-spacing:-.04em;
+}
 
-    section[data-testid="stSidebar"] {
-        background:
-            linear-gradient(
-                180deg,
-                #10172a 0%,
-                #172036 55%,
-                #10172a 100%
-            );
-        border-right: 1px solid rgba(255,255,255,0.08);
-    }
+/* native tabs */
+div[data-baseweb="tab-list"]{
+    border-bottom:1px solid rgba(255,255,255,.10);
+}
+button[data-baseweb="tab"]{
+    color:#8fa0b7!important;
+    font-weight:700!important;
+}
+button[data-baseweb="tab"][aria-selected="true"]{
+    color:#5fc3ff!important;
+}
 
-    section[data-testid="stSidebar"] * {
-        color: #f5f7fb;
-    }
+/* product blocks rendered via st.html */
+.cc-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    padding:8px 2px 14px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    margin-bottom:12px;
+}
+.cc-brand{display:flex;align-items:center;gap:11px;}
+.cc-logo{
+    width:40px;height:40px;border-radius:11px;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 30% 30%,#38d8ff 0%,#2f74ff 45%,#6e5cff 100%);
+    color:white;font-weight:900;
+    box-shadow:0 8px 22px rgba(46,166,255,.24);
+}
+.cc-brand-title{font-weight:850;color:#fff;font-size:1.02rem;}
+.cc-brand-sub{font-size:.68rem;color:#75869f;margin-top:1px;}
+.cc-user{display:flex;align-items:center;gap:10px;}
+.cc-user-copy{text-align:right;}
+.cc-user-name{color:#fff;font-size:.78rem;font-weight:750;}
+.cc-user-status{color:#26d28d;font-size:.67rem;margin-top:2px;}
+.cc-avatar{
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:#1a2a41;border:1px solid var(--border);
+    color:#fff;font-weight:800;font-size:.72rem;
+}
 
-    section[data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.06);
-        color: #f5f7fb;
-        border: 1px solid rgba(255,255,255,0.10);
-        border-radius: 10px;
-        min-height: 44px;
-        transition: 0.2s ease;
-    }
+.cc-strip{
+    display:grid;grid-template-columns:1.45fr 1fr 1fr;
+    background:rgba(10,22,40,.78);
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;
+    overflow:hidden;
+    margin:10px 0 16px;
+}
+.cc-strip-cell{padding:14px 18px;border-right:1px solid rgba(255,255,255,.07);}
+.cc-strip-cell:last-child{border-right:none;}
+.cc-label{
+    color:#708198;font-size:.64rem;font-weight:850;
+    letter-spacing:.13em;text-transform:uppercase;
+}
+.cc-value{color:#f5f8fd;font-size:.87rem;font-weight:750;margin-top:5px;}
+.cc-sub{color:#4bb8ff;font-size:.68rem;margin-top:3px;}
 
-    section[data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.12);
-        border-color: rgba(255,255,255,0.22);
-    }
+.cc-card-html{
+    background:linear-gradient(180deg,#0d1b2e 0%,#0b1829 100%);
+    border:1px solid var(--border);
+    border-radius:15px;
+    padding:20px;
+    box-shadow:0 18px 36px rgba(0,0,0,.14);
+    height:100%;
+    box-sizing:border-box;
+}
+.cc-card-kicker{
+    color:#cbd6e5;font-size:.67rem;font-weight:850;
+    letter-spacing:.13em;text-transform:uppercase;margin-bottom:12px;
+}
+.cc-score-layout{
+    display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;
+}
+.cc-ring{
+    width:150px;height:150px;border-radius:50%;
+    padding:13px;margin:auto;
+    background:conic-gradient(#32b7ff 0 40%,#6d5cff 40% 78%,#1b2b43 78% 100%);
+}
+.cc-ring-inner{
+    width:100%;height:100%;border-radius:50%;
+    background:#0c192b;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+}
+.cc-ring-score{color:#fff;font-size:2.2rem;font-weight:850;letter-spacing:-.06em;}
+.cc-ring-caption{color:#9aa9bb;font-size:.72rem;}
+.cc-score-label{text-align:center;color:#40aaff;font-weight:800;margin-top:8px;}
+.cc-note{color:#d3dce7;font-size:.80rem;line-height:1.5;margin-bottom:12px;}
+.cc-bar-row{
+    display:grid;grid-template-columns:100px 1fr 36px;
+    gap:9px;align-items:center;margin:8px 0;
+    color:#a8b5c5;font-size:.70rem;
+}
+.cc-bar{height:6px;background:#1d2b3f;border-radius:999px;overflow:hidden;}
+.cc-bar-fill{height:100%;background:linear-gradient(90deg,#4b66ff,#2db8ff);border-radius:999px;}
 
-    h1, h2, h3 {
-        color: #111827;
-        letter-spacing: -0.02em;
-    }
+.cc-next-box{
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.02);
+    border-radius:12px;padding:17px;
+}
+.cc-next-title{color:#fff;font-size:1.3rem;font-weight:850;letter-spacing:-.035em;margin-top:7px;}
+.cc-next-copy{color:#b4bfce;font-size:.78rem;line-height:1.5;margin-top:10px;}
+.cc-match{float:right;color:#69dfa9;font-size:1.45rem;font-weight:850;}
+.cc-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+.cc-badge{
+    padding:6px 8px;border-radius:8px;background:#11233a;
+    border:1px solid rgba(255,255,255,.07);color:#9fd6ff;font-size:.66rem;
+}
 
-    p {
-        color: #4b5563;
-    }
+.cc-activity{display:flex;flex-direction:column;gap:11px;}
+.cc-act{display:grid;grid-template-columns:26px 1fr;gap:9px;align-items:center;}
+.cc-act-icon{
+    width:26px;height:26px;border-radius:50%;background:#153860;
+    display:flex;align-items:center;justify-content:center;color:#62c7ff;font-size:.68rem;
+}
+.cc-act-title{color:#e8eef7;font-size:.71rem;font-weight:750;}
+.cc-act-sub{color:#75869b;font-size:.62rem;margin-top:2px;}
 
-    .stButton button {
-        border-radius: 10px;
-        min-height: 44px;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
+.cc-journey{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+    margin-top:12px;
+}
+.cc-step{position:relative;padding-right:18px;}
+.cc-step:before{
+    content:"";position:absolute;top:9px;left:14px;right:-4px;height:2px;background:#2a3b53;
+}
+.cc-step:last-child:before{right:50%;}
+.cc-dot{
+    width:18px;height:18px;border-radius:50%;
+    background:#2f6cff;border:3px solid #143052;
+    position:relative;z-index:2;margin-bottom:8px;
+}
+.cc-step.pending .cc-dot{background:#536277;}
+.cc-step-no{color:#4caeff;font-size:.62rem;font-weight:800;}
+.cc-step-name{color:#f0f4fa;font-size:.83rem;font-weight:750;margin-top:3px;}
+.cc-step-copy{color:#78899e;font-size:.64rem;line-height:1.35;margin-top:3px;}
 
-    .stButton button:hover {
-        transform: translateY(-1px);
-    }
+.cc-table{width:100%;border-collapse:collapse;font-size:.70rem;}
+.cc-table th{
+    color:#708198;text-transform:uppercase;letter-spacing:.08em;
+    font-size:.58rem;text-align:left;padding:7px 7px;
+    border-bottom:1px solid rgba(255,255,255,.07);
+}
+.cc-table td{color:#d7e0eb;padding:9px 7px;border-bottom:1px solid rgba(255,255,255,.05);}
+.cc-good{color:#51dc9d!important;font-weight:800;}
+.cc-mid{color:#f1ad47!important;font-weight:800;}
 
-    .stTextArea textarea,
-    .stTextInput input {
-        border-radius: 12px;
-        border: 1px solid #d8deea;
-        background: white;
-    }
+.cc-insight{display:grid;grid-template-columns:30px 1fr;gap:9px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.cc-insight:last-child{border-bottom:none;}
+.cc-insight-icon{
+    width:28px;height:28px;border-radius:50%;background:#123a2e;
+    display:flex;align-items:center;justify-content:center;color:#49db9e;font-size:.68rem;
+}
+.cc-insight-title{color:#edf3fa;font-size:.71rem;font-weight:750;}
+.cc-insight-copy{color:#7f8ea2;font-size:.63rem;line-height:1.35;margin-top:2px;}
 
-    div[data-testid="stMetric"] {
-        background: white;
-        border: 1px solid #e3e8f0;
-        border-radius: 14px;
-        padding: 18px;
-        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
-    }
+.cc-quick{
+    border:1px solid rgba(255,255,255,.07);border-radius:10px;background:#0e1d31;
+    min-height:64px;display:flex;align-items:center;justify-content:center;
+    text-align:center;color:#dce5ef;font-size:.66rem;font-weight:700;padding:8px;
+}
 
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: white;
-        border-radius: 16px;
-        border-color: #e3e8f0;
-        box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
-    }
-
-    .cc-hero {
-        padding: 30px 34px;
-        border-radius: 20px;
-        background:
-            linear-gradient(
-                135deg,
-                #111827 0%,
-                #182747 55%,
-                #304b85 100%
-            );
-        margin-bottom: 26px;
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
-    }
-
-    .cc-eyebrow {
-        color: #a9bbff;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-
-    .cc-hero h1 {
-        color: white;
-        margin: 0;
-        font-size: 2.25rem;
-    }
-
-    .cc-hero p {
-        color: #d9e0ef;
-        margin-top: 10px;
-        margin-bottom: 0;
-        max-width: 780px;
-        font-size: 1.02rem;
-        line-height: 1.6;
-    }
-
-    .cc-status {
-        display: inline-block;
-        background: #e8fff2;
-        color: #087443;
-        border: 1px solid #c6f3dc;
-        border-radius: 999px;
-        padding: 6px 11px;
-        font-size: 0.78rem;
-        font-weight: 700;
-        margin-top: 14px;
-    }
-
-    .cc-card-title {
-        font-size: 1.08rem;
-        font-weight: 700;
-        color: #111827;
-        margin-bottom: 6px;
-    }
-
-    .cc-card-text {
-        font-size: 0.90rem;
-        color: #667085;
-        min-height: 46px;
-        line-height: 1.5;
-    }
-
-    .cc-agent-label {
-        font-size: 0.74rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #667085;
-        margin-bottom: 10px;
-    }
-
-    .cc-module-header {
-        padding: 22px 26px;
-        background: white;
-        border: 1px solid #e3e8f0;
-        border-radius: 16px;
-        margin-bottom: 20px;
-        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
-    }
-
-    .cc-module-header h2 {
-        margin: 0;
-    }
-
-    .cc-module-header p {
-        margin-top: 8px;
-        margin-bottom: 0;
-    }
-
-    .cc-summary {
-        padding: 20px 22px;
-        background: #f8faff;
-        border: 1px solid #dbe4ff;
-        border-radius: 14px;
-        color: #344054;
-        line-height: 1.7;
-    }
-
-    .cc-footer {
-        color: #98a2b3;
-        text-align: center;
-        font-size: 0.78rem;
-        margin-top: 42px;
-        padding-top: 20px;
-        border-top: 1px solid #e8ecf2;
-    }
-
-    section[data-testid="stSidebar"]
-    [data-testid="stFileUploaderDropzone"] {
-        background: #ffffff;
-        border: 1px dashed #cbd5e1;
-        border-radius: 12px;
-    }
-
-    section[data-testid="stSidebar"]
-    [data-testid="stFileUploaderDropzone"] * {
-        color: #334155 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [data-testid="stFileUploaderDropzone"] button {
-        background: #f8fafc !important;
-        color: #111827 !important;
-        border: 1px solid #cbd5e1 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [data-testid="stFileUploaderDropzone"] button:hover {
-        background: #eef2f7 !important;
-        color: #111827 !important;
-        border-color: #94a3b8 !important;
-        transform: none;
-    }
-
-    section[data-testid="stSidebar"]
-    [data-testid="stFileUploader"] small {
-        color: #64748b !important;
-    }
-
-    </style>
+.cc-module-header{
+    padding:20px 22px;border:1px solid var(--border);
+    background:linear-gradient(180deg,#0d1b2e,#0b1829);
+    border-radius:14px;margin:14px 0 18px;
+}
+.cc-module-header h2{margin:0!important;color:#fff!important;}
+.cc-module-header p{margin:7px 0 0!important;color:#8fa0b7!important;}
+.cc-agent-label{
+    color:#3aaeff;font-size:.64rem;font-weight:850;
+    letter-spacing:.13em;text-transform:uppercase;margin-bottom:7px;
+}
+.cc-summary{
+    padding:18px 20px;background:#0d1b2e;border:1px solid var(--border);
+    border-radius:13px;color:#aebacc;line-height:1.6;
+}
+.cc-footer{
+    text-align:center;color:#53657d;font-size:.70rem;margin-top:36px;
+    padding-top:15px;border-top:1px solid rgba(255,255,255,.06);
+}
+@media(max-width:1100px){
+    .cc-strip{grid-template-columns:1fr;}
+    .cc-strip-cell{border-right:none;border-bottom:1px solid rgba(255,255,255,.07);}
+    .cc-score-layout{grid-template-columns:1fr;}
+    .cc-journey{grid-template-columns:1fr 1fr;}
+}
+</style>
     """,
     unsafe_allow_html=True,
 )
 
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-
-    if ICON_PATH.exists():
-        st.image(
-            str(ICON_PATH),
-            width=72,
-        )
-
-    st.markdown("## CareerCompass AI")
-    st.caption("Career Intelligence Platform")
-
-    st.markdown("---")
-
-    if st.button(
-        "⌂  Visão geral",
-        use_container_width=True,
-    ):
-        st.session_state.selected_flow = "home"
-        st.rerun()
-
-    if st.button(
-        "🔎  Radar de Oportunidades",
-        use_container_width=True,
-    ):
-        st.session_state.selected_flow = "scout"
-        st.rerun()
-
-    if st.button(
-        "🎯  Análise de Fit",
-        use_container_width=True,
-    ):
-        st.session_state.selected_flow = "curator"
-        st.rerun()
-
-    if st.button(
-        "🎤  Simulador de Entrevistas",
-        use_container_width=True,
-    ):
-        st.session_state.selected_flow = "coach"
-        st.rerun()
-
-    if st.button(
-        "📄  Relatório Profissional",
-        use_container_width=True,
-    ):
-        st.session_state.selected_flow = "report"
-        st.rerun()
-
-    st.markdown("---")
-
-    st.markdown("### Perfil")
-
-    uploaded_resume = st.file_uploader(
-        "Carregar currículo",
-        type=["pdf", "docx"],
-        help="Envie um currículo em PDF ou DOCX.",
-    )
-
-    if uploaded_resume is not None:
-        try:
-            extracted_text = extract_resume_text(
-                uploaded_resume.name,
-                uploaded_resume.getvalue(),
-            )
-
-            if (
-                st.session_state.resume_name != uploaded_resume.name
-                or st.session_state.resume_text != extracted_text
-            ):
-                st.session_state.resume_text = extracted_text
-                st.session_state.resume_name = uploaded_resume.name
-                st.session_state.scout_results = None
-                st.session_state.career_report = None
-                st.session_state.career_report_pdf = None
-                st.session_state.candidate_name_input = ""
-
-                reset_coach()
-                reset_opportunity_analysis()
-
-            profile = st.session_state.resume_text
-
-            st.success(
-                "Currículo carregado com sucesso"
-            )
-
-            st.caption(
-                f"Arquivo ativo: {uploaded_resume.name}"
-            )
-
-        except ResumeParserError as exc:
-            st.error(str(exc))
-
-    if st.session_state.resume_text:
-
-        st.info(
-            "Perfil em uso: currículo enviado"
-        )
-
-        if st.button(
-            "Usar perfil padrão",
-            use_container_width=True,
-        ):
-            st.session_state.resume_text = None
-            st.session_state.resume_name = None
-            st.session_state.scout_results = None
-            st.session_state.career_report = None
-            st.session_state.career_report_pdf = None
-            st.session_state.candidate_name_input = ""
-
-            reset_coach()
-            st.rerun()
-
+def render_html(content: str) -> None:
+    """
+    Renderiza HTML real.
+    Usa st.html quando disponível para evitar que o Markdown
+    transforme blocos HTML em código literal.
+    """
+    if hasattr(st, "html"):
+        st.html(content)
     else:
-        st.success(
-            "Perfil padrão carregado"
-        )
+        st.markdown(content, unsafe_allow_html=True)
 
-    with st.expander(
-        "Visualizar perfil em uso"
-    ):
-        st.text(profile)
-
-    st.markdown("---")
-
-    st.caption(
-        "Maestro AI coordena os módulos especializados da plataforma."
-    )
-
+# =========================================================
+# SIDEBAR — DESATIVADA
+# =========================================================
 
 # =========================================================
 # PROFILE ENGINE
@@ -552,272 +496,654 @@ if not st.session_state.candidate_name_input:
 
 
 # =========================================================
-# HERO
+# TOP NAVIGATION + HOME
 # =========================================================
 
-st.markdown(
-    """<div class="cc-hero">
-<div class="cc-eyebrow">CAREER INTELLIGENCE PLATFORM</div>
-<h1>CareerCompass AI</h1>
-<p>Transforme experiência profissional, competências e objetivos de carreira em decisões mais estruturadas para recolocação, desenvolvimento e processos seletivos.</p>
-<div class="cc-status">● Perfil ativo</div>
-</div>""",
-    unsafe_allow_html=True,
+active_flow = st.session_state.selected_flow
+
+candidate_display = (
+    structured_profile.candidate_name
+    if structured_profile.candidate_name
+    else "Candidato"
 )
 
+candidate_initials = "".join(
+    part[0].upper()
+    for part in candidate_display.split()
+    if part
+)[:2] or "CC"
 
-# =========================================================
-# HOME
-# =========================================================
+render_html(
+    f"""
+<div class="cc-top">
+    <div class="cc-brand">
+        <div class="cc-logo">C</div>
+        <div>
+            <div class="cc-brand-title">CareerCompass AI</div>
+            <div class="cc-brand-sub">Career Intelligence Platform</div>
+        </div>
+    </div>
+    <div class="cc-user">
+        <div class="cc-user-copy">
+            <div class="cc-user-name">{candidate_display}</div>
+            <div class="cc-user-status">● Perfil ativo</div>
+        </div>
+        <div class="cc-avatar">{candidate_initials}</div>
+    </div>
+</div>
+"""
+)
+
+nav1, nav2, nav3, nav4, nav5 = st.columns(5)
+
+with nav1:
+    if st.button("Overview", key="nav_home", use_container_width=True):
+        st.session_state.selected_flow = "home"
+        st.rerun()
+
+with nav2:
+    if st.button("Oportunidades", key="nav_scout", use_container_width=True):
+        st.session_state.selected_flow = "scout"
+        st.rerun()
+
+with nav3:
+    if st.button("Career Fit", key="nav_curator", use_container_width=True):
+        st.session_state.selected_flow = "curator"
+        st.rerun()
+
+with nav4:
+    if st.button("Coach", key="nav_coach", use_container_width=True):
+        st.session_state.selected_flow = "coach"
+        st.rerun()
+
+with nav5:
+    if st.button("Relatórios", key="nav_report", use_container_width=True):
+        st.session_state.selected_flow = "report"
+        st.rerun()
+
+with st.expander("Perfil e currículo", expanded=False):
+    up_col, info_col = st.columns([1.1, 1.4])
+
+    with up_col:
+        uploaded_resume = st.file_uploader(
+            "Carregar ou substituir currículo",
+            type=["pdf", "docx"],
+            help="Envie um currículo em PDF ou DOCX.",
+            key="top_resume_uploader",
+        )
+
+        if uploaded_resume is not None:
+            try:
+                extracted_text = extract_resume_text(
+                    uploaded_resume.name,
+                    uploaded_resume.getvalue(),
+                )
+
+                if (
+                    st.session_state.resume_name != uploaded_resume.name
+                    or st.session_state.resume_text != extracted_text
+                ):
+                    st.session_state.resume_text = extracted_text
+                    st.session_state.resume_name = uploaded_resume.name
+                    st.session_state.scout_results = None
+                    st.session_state.career_report = None
+                    st.session_state.career_report_pdf = None
+                    st.session_state.candidate_name_input = ""
+
+                    reset_coach()
+                    reset_opportunity_analysis()
+                    st.rerun()
+
+            except ResumeParserError as exc:
+                st.error(str(exc))
+
+    with info_col:
+        st.write(f"**Perfil ativo:** {candidate_display}")
+        st.write(
+            f"**Fonte:** "
+            f"{st.session_state.resume_name if st.session_state.resume_text else 'Perfil padrão'}"
+        )
+
+        if st.session_state.resume_text:
+            if st.button(
+                "Voltar ao perfil padrão",
+                key="top_use_default",
+            ):
+                st.session_state.resume_text = None
+                st.session_state.resume_name = None
+                st.session_state.scout_results = None
+                st.session_state.career_report = None
+                st.session_state.career_report_pdf = None
+                st.session_state.candidate_name_input = ""
+                reset_coach()
+                reset_opportunity_analysis()
+                st.rerun()
+
 
 if st.session_state.selected_flow == "home":
 
-    st.markdown(
-        "## Seu centro de inteligência de carreira"
+    resume_label = (
+        st.session_state.resume_name
+        if st.session_state.resume_text
+        else "Perfil padrão"
     )
 
-    st.caption(
-        "Escolha o módulo mais adequado ao momento da sua jornada profissional."
+    analysis_label = (
+        st.session_state.analyzed_job_title
+        if st.session_state.analyzed_job_title
+        else "Nenhuma oportunidade analisada"
     )
+
+    render_html(
+        f"""
+<div class="cc-strip">
+    <div class="cc-strip-cell">
+        <div class="cc-label">Perfil ativo</div>
+        <div class="cc-value">{candidate_display}</div>
+        <div class="cc-sub">{structured_profile.seniority or 'Senioridade não identificada'}</div>
+    </div>
+    <div class="cc-strip-cell">
+        <div class="cc-label">Currículo</div>
+        <div class="cc-value">{resume_label}</div>
+        <div class="cc-sub">Fonte utilizada na análise</div>
+    </div>
+    <div class="cc-strip-cell">
+        <div class="cc-label">Última análise</div>
+        <div class="cc-value">{analysis_label}</div>
+        <div class="cc-sub">Contexto profissional atual</div>
+    </div>
+</div>
+"""
+    )
+
+    areas_count = len(structured_profile.areas)
+    hard_count = len(structured_profile.hard_skills)
+    tools_count = len(structured_profile.tools)
+    mgmt_count = len(structured_profile.management_skills)
+
+    completeness = 0
+    completeness += 20 if structured_profile.candidate_name else 0
+    completeness += 20 if (
+        structured_profile.seniority
+        and structured_profile.seniority != "Não identificada"
+    ) else 0
+    completeness += min(20, areas_count * 5)
+    completeness += min(20, hard_count * 3)
+    completeness += min(20, tools_count * 3)
+    completeness = min(completeness, 100)
+
+    competence_score = min(
+        100,
+        35 + hard_count * 6 + tools_count * 3,
+    )
+
+    experience_score = min(
+        100,
+        45 + mgmt_count * 7,
+    )
+
+    seniority_score = (
+        100
+        if (
+            structured_profile.seniority
+            and structured_profile.seniority != "Não identificada"
+        )
+        else 35
+    )
+
+    alignment_score = completeness
+
+    overall_score = round(
+        competence_score * .30
+        + experience_score * .25
+        + seniority_score * .25
+        + alignment_score * .20
+    )
+
+    if overall_score >= 80:
+        overall_label = "Strong Fit"
+    elif overall_score >= 65:
+        overall_label = "Competitive"
+    elif overall_score >= 50:
+        overall_label = "Developing"
+    else:
+        overall_label = "Build Profile"
+
+    if st.session_state.ats_report is not None:
+        next_title = (
+            st.session_state.analyzed_job_title
+            or "Oportunidade analisada"
+        )
+        match_score = st.session_state.ats_report.score
+        mandatory = st.session_state.ats_report.mandatory_coverage
+        keyword = st.session_state.ats_report.keyword_coverage
+        next_copy = (
+            "A oportunidade já possui análise de aderência "
+            "e inteligência ATS."
+        )
+        next_badges = [
+            f"ATS {match_score}%",
+            f"Obrigatórios {mandatory}%",
+            f"Keywords {keyword}%",
+        ]
+    else:
+        next_title = "Analise uma oportunidade"
+        match_score = None
+        next_copy = (
+            "Cole uma vaga para comparar requisitos, senioridade, "
+            "ATS e estratégia de candidatura."
+        )
+        next_badges = [
+            "Career Fit",
+            "ATS Intelligence",
+            "CV Tailoring",
+        ]
+
+    badges_html = "".join(
+        f'<span class="cc-badge">{item}</span>'
+        for item in next_badges
+    )
+
+    match_html = (
+        f'<span class="cc-match">{match_score}%</span>'
+        if match_score is not None
+        else ""
+    )
+
+    activities = []
 
     if st.session_state.resume_text:
-        st.success(
-            f"Currículo ativo: {st.session_state.resume_name}"
-        )
-    else:
-        st.info(
-            "A plataforma está utilizando o perfil profissional padrão."
+        activities.append(
+            (
+                "CV",
+                "Currículo carregado",
+                st.session_state.resume_name or "Currículo",
+            )
         )
 
-    col1, col2, col3, col4 = st.columns(4)
+    if st.session_state.curator_result is not None:
+        activities.append(
+            (
+                "✓",
+                "Career Fit concluído",
+                st.session_state.analyzed_job_title or "Oportunidade",
+            )
+        )
 
-    with col1:
+    if st.session_state.ats_report is not None:
+        activities.append(
+            (
+                "A",
+                "ATS Intelligence",
+                f"{st.session_state.ats_report.score}%",
+            )
+        )
+
+    if st.session_state.tailoring_report is not None:
+        activities.append(
+            (
+                "T",
+                "CV Tailoring gerado",
+                f"{st.session_state.tailoring_report.tailoring_score}%",
+            )
+        )
+
+    if st.session_state.scout_results:
+        activities.append(
+            (
+                "R",
+                "Radar atualizado",
+                f"{len(st.session_state.scout_results)} caminhos",
+            )
+        )
+
+    if st.session_state.coach_feedback:
+        activities.append(
+            (
+                "C",
+                "Entrevista simulada",
+                f"{len(st.session_state.coach_feedback)} etapas",
+            )
+        )
+
+    if not activities:
+        activities = [
+            ("•", "Perfil disponível", "Pronto para análise"),
+            ("→", "Próxima ação", "Analise uma oportunidade"),
+        ]
+
+    activity_html = "".join(
+        f"""
+<div class="cc-act">
+    <div class="cc-act-icon">{icon}</div>
+    <div>
+        <div class="cc-act-title">{title}</div>
+        <div class="cc-act-sub">{sub}</div>
+    </div>
+</div>
+"""
+        for icon, title, sub in activities[:5]
+    )
+
+    score_col, next_col, activity_col = st.columns(
+        [1.15, 1.15, .62],
+        gap="medium",
+    )
+
+    with score_col:
         with st.container(border=True):
+            render_html(
+                f"""
+<div class="cc-card-kicker">Career Intelligence Score</div>
+<div class="cc-score-layout">
+    <div>
+        <div class="cc-ring">
+            <div class="cc-ring-inner">
+                <div class="cc-ring-score">{overall_score}</div>
+                <div class="cc-ring-caption">de 100</div>
+            </div>
+        </div>
+        <div class="cc-score-label">{overall_label}</div>
+    </div>
+    <div>
+        <div class="cc-note">
+            Seu perfil é avaliado por evidências profissionais,
+            competências, senioridade e completude das informações.
+        </div>
 
-            st.markdown(
-                """
-                <div class="cc-agent-label">Scout</div>
-                <div class="cc-card-title">🔎 Radar de Oportunidades</div>
-                <div class="cc-card-text">
-                    Descubra funções profissionais com maior aderência ao seu perfil.
-                </div>
-                """,
-                unsafe_allow_html=True,
+        <div class="cc-bar-row">
+            <span>Competências</span>
+            <div class="cc-bar">
+                <div class="cc-bar-fill" style="width:{competence_score}%"></div>
+            </div>
+            <span>{competence_score}%</span>
+        </div>
+
+        <div class="cc-bar-row">
+            <span>Experiência</span>
+            <div class="cc-bar">
+                <div class="cc-bar-fill" style="width:{experience_score}%"></div>
+            </div>
+            <span>{experience_score}%</span>
+        </div>
+
+        <div class="cc-bar-row">
+            <span>Senioridade</span>
+            <div class="cc-bar">
+                <div class="cc-bar-fill" style="width:{seniority_score}%"></div>
+            </div>
+            <span>{seniority_score}%</span>
+        </div>
+
+        <div class="cc-bar-row">
+            <span>Perfil</span>
+            <div class="cc-bar">
+                <div class="cc-bar-fill" style="width:{alignment_score}%"></div>
+            </div>
+            <span>{alignment_score}%</span>
+        </div>
+    </div>
+</div>
+"""
             )
 
-            st.markdown("")
+    with next_col:
+        with st.container(border=True):
+            render_html(
+                f"""
+<div class="cc-card-kicker">Next Best Action</div>
+<div class="cc-next-box">
+    {match_html}
+    <div class="cc-label">Oportunidade em destaque</div>
+    <div class="cc-next-title">{next_title}</div>
+    <div class="cc-sub">Career Intelligence Workspace</div>
+    <div class="cc-next-copy">{next_copy}</div>
+    <div class="cc-badges">{badges_html}</div>
+</div>
+"""
+            )
 
             if st.button(
-                "Explorar oportunidades →",
-                key="home_scout",
-                use_container_width=True,
+                "Analisar oportunidade",
+                key="home_primary_action",
                 type="primary",
-            ):
-                st.session_state.selected_flow = "scout"
-                st.rerun()
-
-    with col2:
-        with st.container(border=True):
-
-            st.markdown(
-                """
-                <div class="cc-agent-label">Curator</div>
-                <div class="cc-card-title">🎯 Análise de Fit</div>
-                <div class="cc-card-text">
-                    Compare uma vaga com seu perfil e identifique aderências e gaps.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown("")
-
-            if st.button(
-                "Analisar oportunidade →",
-                key="home_curator",
                 use_container_width=True,
             ):
                 st.session_state.selected_flow = "curator"
                 st.rerun()
 
-    with col3:
+    with activity_col:
         with st.container(border=True):
-
-            st.markdown(
-                """
-                <div class="cc-agent-label">Coach</div>
-                <div class="cc-card-title">🎤 Simulador de Entrevistas</div>
-                <div class="cc-card-text">
-                    Pratique respostas e receba feedback estruturado.
-                </div>
-                """,
-                unsafe_allow_html=True,
+            render_html(
+                f"""
+<div class="cc-card-kicker">Atividade recente</div>
+<div class="cc-activity">{activity_html}</div>
+"""
             )
-
-            st.markdown("")
-
-            if st.button(
-                "Iniciar preparação →",
-                key="home_coach",
-                use_container_width=True,
-            ):
-                st.session_state.selected_flow = "coach"
-                st.rerun()
-
-    with col4:
-        with st.container(border=True):
-
-            st.markdown(
-                """
-                <div class="cc-agent-label">Assessment</div>
-                <div class="cc-card-title">📄 Relatório Profissional</div>
-                <div class="cc-card-text">
-                    Consolide o diagnóstico do candidato em um relatório estruturado.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown("")
-
-            if st.button(
-                "Gerar assessment →",
-                key="home_report",
-                use_container_width=True,
-            ):
-                st.session_state.selected_flow = "report"
-                st.rerun()
-
-    st.markdown("")
-
-    st.markdown(
-        "## Diagnóstico do Perfil Profissional"
-    )
-
-    st.caption(
-        "Leitura estruturada do perfil ativo realizada pelo Profile Engine."
-    )
-
-    d1, d2, d3, d4 = st.columns(4)
-
-    with d1:
-        st.metric(
-            "Senioridade",
-            structured_profile.seniority,
-        )
-
-    with d2:
-        st.metric(
-            "Áreas identificadas",
-            len(structured_profile.areas),
-        )
-
-    with d3:
-        st.metric(
-            "Hard Skills",
-            len(structured_profile.hard_skills),
-        )
-
-    with d4:
-        st.metric(
-            "Ferramentas",
-            len(structured_profile.tools),
-        )
 
     with st.container(border=True):
+        render_html(
+            f"""
+<div class="cc-card-kicker">Sua jornada de carreira</div>
+<div class="cc-journey">
+    <div class="cc-step">
+        <div class="cc-dot"></div>
+        <div class="cc-step-no">01</div>
+        <div class="cc-step-name">Perfil</div>
+        <div class="cc-step-copy">Estruture suas evidências profissionais.</div>
+    </div>
+    <div class="cc-step">
+        <div class="cc-dot"></div>
+        <div class="cc-step-no">02</div>
+        <div class="cc-step-name">Descobrir</div>
+        <div class="cc-step-copy">Explore caminhos profissionais aderentes.</div>
+    </div>
+    <div class="cc-step {'pending' if st.session_state.curator_result is None else ''}">
+        <div class="cc-dot"></div>
+        <div class="cc-step-no">03</div>
+        <div class="cc-step-name">Career Fit</div>
+        <div class="cc-step-copy">Avalie vaga, requisitos e ATS.</div>
+    </div>
+    <div class="cc-step {'pending' if st.session_state.tailoring_report is None else ''}">
+        <div class="cc-dot"></div>
+        <div class="cc-step-no">04</div>
+        <div class="cc-step-name">CV Intelligence</div>
+        <div class="cc-step-copy">Otimize posicionamento e evidências.</div>
+    </div>
+    <div class="cc-step {'pending' if not st.session_state.coach_feedback else ''}">
+        <div class="cc-dot"></div>
+        <div class="cc-step-no">05</div>
+        <div class="cc-step-name">Interview Coach</div>
+        <div class="cc-step-copy">Prepare respostas contextualizadas.</div>
+    </div>
+</div>
+"""
+        )
 
-        left, right = st.columns(2)
+    bottom1, bottom2, bottom3 = st.columns(
+        [1.25, .72, .82],
+        gap="medium",
+    )
 
-        with left:
+    if st.session_state.scout_results:
+        rows = []
 
-            st.markdown(
-                "### Perfil de atuação"
+        for result in st.session_state.scout_results[:4]:
+            css_class = (
+                "cc-good"
+                if result.score >= 75
+                else "cc-mid"
             )
 
-            st.markdown(
-                "**Candidato identificado**"
+            rows.append(
+                f"""
+<tr>
+    <td>{result.title}</td>
+    <td>Perfil ativo</td>
+    <td class="{css_class}">{result.score}%</td>
+    <td>{result.level}</td>
+</tr>
+"""
             )
 
-            st.write(
-                structured_profile.candidate_name
+        opportunity_rows = "".join(rows)
+
+    else:
+        opportunity_rows = """
+<tr>
+    <td colspan="4" style="color:#6f7f95;">
+        Execute o Radar de Oportunidades para preencher este painel.
+    </td>
+</tr>
+"""
+
+    with bottom1:
+        with st.container(border=True):
+            render_html(
+                f"""
+<div class="cc-card-kicker">Oportunidades recomendadas</div>
+<table class="cc-table">
+    <thead>
+        <tr>
+            <th>Posição</th>
+            <th>Fonte</th>
+            <th>Match</th>
+            <th>Nível</th>
+        </tr>
+    </thead>
+    <tbody>{opportunity_rows}</tbody>
+</table>
+"""
             )
 
-            st.markdown(
-                "**Áreas profissionais**"
+            if st.button(
+                "Explorar oportunidades",
+                key="home_scout_action",
+                use_container_width=True,
+            ):
+                st.session_state.selected_flow = "scout"
+                st.rerun()
+
+    insight_items = []
+
+    if structured_profile.management_skills:
+        insight_items.append(
+            (
+                "✓",
+                "Competências de gestão",
+                f"{len(structured_profile.management_skills)} competências identificadas",
+            )
+        )
+
+    if structured_profile.hard_skills:
+        insight_items.append(
+            (
+                "#",
+                "Base técnica",
+                f"{len(structured_profile.hard_skills)} hard skills reconhecidas",
+            )
+        )
+
+    if structured_profile.evidence_terms:
+        insight_items.append(
+            (
+                "↗",
+                "Evidências profissionais",
+                f"{len(structured_profile.evidence_terms)} termos de resultado",
+            )
+        )
+
+    if (
+        st.session_state.ats_report is not None
+        and st.session_state.ats_report.mandatory_gaps
+    ):
+        insight_items.append(
+            (
+                "!",
+                "Gap prioritário",
+                st.session_state.ats_report.mandatory_gaps[0],
+            )
+        )
+
+    if not insight_items:
+        insight_items = [
+            (
+                "→",
+                "Comece pelo Career Fit",
+                "Compare seu perfil com uma vaga real.",
+            ),
+            (
+                "+",
+                "Amplie o perfil",
+                "Carregue um currículo completo para enriquecer a análise.",
+            ),
+        ]
+
+    insight_html = "".join(
+        f"""
+<div class="cc-insight">
+    <div class="cc-insight-icon">{icon}</div>
+    <div>
+        <div class="cc-insight-title">{title}</div>
+        <div class="cc-insight-copy">{copy}</div>
+    </div>
+</div>
+"""
+        for icon, title, copy in insight_items[:4]
+    )
+
+    with bottom2:
+        with st.container(border=True):
+            render_html(
+                f"""
+<div class="cc-card-kicker">Insights para você</div>
+{insight_html}
+"""
             )
 
-            st.write(
-                format_items(
-                    structured_profile.areas
-                )
+    with bottom3:
+        with st.container(border=True):
+            render_html(
+                """
+<div class="cc-card-kicker">Acessos rápidos</div>
+"""
             )
 
-            st.markdown(
-                "**Hard Skills**"
-            )
+            q1, q2 = st.columns(2)
 
-            st.write(
-                format_items(
-                    structured_profile.hard_skills
-                )
-            )
+            with q1:
+                if st.button(
+                    "Career Fit",
+                    key="quick_fit",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_flow = "curator"
+                    st.rerun()
 
-            st.markdown(
-                "**Ferramentas e tecnologias**"
-            )
+                if st.button(
+                    "Coach",
+                    key="quick_coach",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_flow = "coach"
+                    st.rerun()
 
-            st.write(
-                format_items(
-                    structured_profile.tools
-                )
-            )
+            with q2:
+                if st.button(
+                    "Oportunidades",
+                    key="quick_scout",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_flow = "scout"
+                    st.rerun()
 
-        with right:
-
-            st.markdown(
-                "### Competências complementares"
-            )
-
-            st.markdown(
-                "**Gestão e liderança**"
-            )
-
-            st.write(
-                format_items(
-                    structured_profile.management_skills
-                )
-            )
-
-            st.markdown(
-                "**Metodologias**"
-            )
-
-            st.write(
-                format_items(
-                    structured_profile.methodologies
-                )
-            )
-
-            st.markdown(
-                "**Idiomas identificados**"
-            )
-
-            st.write(
-                format_items(
-                    structured_profile.languages
-                )
-            )
-
-            st.markdown(
-                "**Evidências de resultados**"
-            )
-
-            st.write(
-                format_items(
-                    structured_profile.evidence_terms
-                )
-            )
-
+                if st.button(
+                    "Relatório",
+                    key="quick_report",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_flow = "report"
+                    st.rerun()
 
 # =========================================================
 # SCOUT
@@ -829,7 +1155,7 @@ elif st.session_state.selected_flow == "scout":
         """
         <div class="cc-module-header">
             <div class="cc-agent-label">Scout</div>
-            <h2>🔎 Radar de Oportunidades</h2>
+            <h2>Oportunidades</h2>
             <p>
                 Identifique funções profissionais com maior aderência
                 às competências e conhecimentos registrados no perfil ativo.
@@ -964,7 +1290,7 @@ elif st.session_state.selected_flow == "curator":
     st.markdown(
         """<div class="cc-module-header">
 <div class="cc-agent-label">Curator 2.0</div>
-<h2>🎯 Análise de Fit + ATS Intelligence</h2>
+<h2>Career Fit + ATS Intelligence</h2>
 <p>Compare o perfil ativo com uma oportunidade, avalie aderência, cobertura ATS, gaps, recomendações e estratégia de customização do currículo.</p>
 </div>""",
         unsafe_allow_html=True,
@@ -1653,7 +1979,7 @@ elif st.session_state.selected_flow == "coach":
     st.markdown(
         """<div class="cc-module-header">
 <div class="cc-agent-label">Coach 2.0</div>
-<h2>🎤 Simulador de Entrevistas</h2>
+<h2>Interview Coach</h2>
 <p>Pratique sua narrativa profissional com perguntas contextualizadas pela oportunidade, pelas forças e pelos gaps identificados.</p>
 </div>""",
         unsafe_allow_html=True,
@@ -2023,7 +2349,7 @@ elif st.session_state.selected_flow == "report":
         """
         <div class="cc-module-header">
             <div class="cc-agent-label">Career Assessment</div>
-            <h2>📄 Relatório Profissional</h2>
+            <h2>Career Report</h2>
             <p>
                 Consolide as principais informações identificadas no currículo
                 e nas análises realizadas pelo CareerCompass AI.
