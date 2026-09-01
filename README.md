@@ -21,7 +21,7 @@
 
 ---
 
-## 🧭 Sobre o CareerCompass AI
+## Sobre o CareerCompass AI
 
 O **CareerCompass AI** é uma plataforma de inteligência de carreira desenvolvida para transformar informações profissionais em análises estruturadas que apoiem decisões relacionadas a **recolocação, candidatura, desenvolvimento profissional e preparação para processos seletivos**.
 
