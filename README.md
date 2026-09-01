@@ -35,7 +35,11 @@ O CareerCompass AI utiliza uma **arquitetura modular inspirada em sistemas multi
 
 ---
 
-🚀 Live Demo: https://careercompass-intelligence.streamlit.app/
+## 🚀 Live Demo
+
+Acesse o CareerCompass AI:
+
+https://careercompass-intelligence.streamlit.app
 
 ---
 
