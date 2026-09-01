@@ -3,10 +3,13 @@ from pathlib import Path
 import streamlit as st
 from PIL import Image
 
+from ats_engine import analyze_ats
 from coach_engine import evaluate_answer, get_step
 from curator_engine import analyze_compatibility
+from cv_tailoring_engine import tailor_cv
 from pdf_engine import build_career_report_pdf
 from profile_engine import build_professional_profile
+from recommendation_engine import build_recommendations
 from report_engine import build_career_report, report_to_markdown
 from resume_parser import ResumeParserError, extract_resume_text
 from scout_engine import discover_roles
@@ -46,6 +49,15 @@ def reset_coach():
 
         if key in st.session_state:
             del st.session_state[key]
+
+
+def reset_opportunity_analysis():
+    st.session_state.curator_result = None
+    st.session_state.ats_report = None
+    st.session_state.recommendation_report = None
+    st.session_state.tailoring_report = None
+    st.session_state.analyzed_job_title = ""
+    st.session_state.analyzed_job_description = ""
 
 
 def format_items(
@@ -113,6 +125,30 @@ if "career_report_pdf" not in st.session_state:
 
 if "candidate_name_input" not in st.session_state:
     st.session_state.candidate_name_input = ""
+
+if "job_title_input" not in st.session_state:
+    st.session_state.job_title_input = ""
+
+if "job_description_input" not in st.session_state:
+    st.session_state.job_description_input = ""
+
+if "curator_result" not in st.session_state:
+    st.session_state.curator_result = None
+
+if "ats_report" not in st.session_state:
+    st.session_state.ats_report = None
+
+if "recommendation_report" not in st.session_state:
+    st.session_state.recommendation_report = None
+
+if "tailoring_report" not in st.session_state:
+    st.session_state.tailoring_report = None
+
+if "analyzed_job_title" not in st.session_state:
+    st.session_state.analyzed_job_title = ""
+
+if "analyzed_job_description" not in st.session_state:
+    st.session_state.analyzed_job_description = ""
 
 
 default_profile = load_default_profile()
@@ -447,6 +483,7 @@ with st.sidebar:
                 st.session_state.candidate_name_input = ""
 
                 reset_coach()
+                reset_opportunity_analysis()
 
             profile = st.session_state.resume_text
 
@@ -925,16 +962,11 @@ elif st.session_state.selected_flow == "scout":
 elif st.session_state.selected_flow == "curator":
 
     st.markdown(
-        """
-        <div class="cc-module-header">
-            <div class="cc-agent-label">Curator</div>
-            <h2>🎯 Análise de Fit Profissional</h2>
-            <p>
-                Compare o perfil ativo com os requisitos de uma oportunidade
-                e obtenha uma leitura objetiva de aderências e gaps.
-            </p>
-        </div>
-        """,
+        """<div class="cc-module-header">
+<div class="cc-agent-label">Curator 2.0</div>
+<h2>🎯 Análise de Fit + ATS Intelligence</h2>
+<p>Compare o perfil ativo com uma oportunidade, avalie aderência, cobertura ATS, gaps, recomendações e estratégia de customização do currículo.</p>
+</div>""",
         unsafe_allow_html=True,
     )
 
@@ -957,19 +989,25 @@ elif st.session_state.selected_flow == "curator":
                 "### Oportunidade"
             )
 
+            job_title = st.text_input(
+                "Cargo / título da oportunidade",
+                key="job_title_input",
+                placeholder="Ex.: Gerente de Projetos e Performance",
+            )
+
             job_description = st.text_area(
                 "Descrição da vaga",
+                key="job_description_input",
                 height=320,
                 placeholder=(
                     "Cole aqui a descrição completa da oportunidade, "
-                    "incluindo responsabilidades, requisitos, diferenciais "
-                    "e informações sobre a função."
+                    "incluindo responsabilidades, requisitos obrigatórios, "
+                    "diferenciais e informações sobre a função."
                 ),
-                label_visibility="collapsed",
             )
 
             analyze = st.button(
-                "Analisar compatibilidade",
+                "Analisar oportunidade",
                 type="primary",
                 use_container_width=True,
             )
@@ -1009,6 +1047,10 @@ elif st.session_state.selected_flow == "curator":
                 f"{format_items(structured_profile.tools)}"
             )
 
+            st.caption(
+                "O Curator 2.0 usa o currículo ativo como fonte de evidências."
+            )
+
     if analyze:
 
         if not job_description.strip():
@@ -1019,36 +1061,131 @@ elif st.session_state.selected_flow == "curator":
 
         else:
 
-            result = analyze_compatibility(
-                profile=profile,
-                job_description=job_description,
+            analyzed_title = (
+                job_title.strip()
+                if job_title.strip()
+                else "Oportunidade analisada"
             )
 
-            st.markdown(
-                "### Diagnóstico"
-            )
+            with st.spinner(
+                "Executando Fit, ATS, recomendações e CV Tailoring..."
+            ):
 
-            metric1, metric2, metric3 = st.columns(3)
-
-            with metric1:
-                st.metric(
-                    "Compatibilidade",
-                    f"{result['score']}%",
+                curator_result = analyze_compatibility(
+                    profile=profile,
+                    job_description=job_description,
                 )
 
-            with metric2:
+                ats_report = analyze_ats(
+                    profile=profile,
+                    job_description=job_description,
+                )
+
+                recommendation_report = build_recommendations(
+                    ats_report
+                )
+
+                tailoring_report = tailor_cv(
+                    profile_text=profile,
+                    job_description=job_description,
+                    job_title=analyzed_title,
+                    ats_report=ats_report,
+                    recommendation_report=recommendation_report,
+                )
+
+            st.session_state.curator_result = curator_result
+            st.session_state.ats_report = ats_report
+            st.session_state.recommendation_report = recommendation_report
+            st.session_state.tailoring_report = tailoring_report
+            st.session_state.analyzed_job_title = analyzed_title
+            st.session_state.analyzed_job_description = job_description
+
+            reset_coach()
+
+    result = st.session_state.curator_result
+    ats_report = st.session_state.ats_report
+    recommendation_report = st.session_state.recommendation_report
+    tailoring_report = st.session_state.tailoring_report
+
+    if (
+        result
+        and ats_report
+        and recommendation_report
+        and tailoring_report
+    ):
+
+        st.markdown(
+            "## Diagnóstico integrado"
+        )
+
+        if st.session_state.analyzed_job_title:
+            st.caption(
+                f"Oportunidade analisada: "
+                f"{st.session_state.analyzed_job_title}"
+            )
+
+        metric1, metric2, metric3, metric4 = st.columns(4)
+
+        with metric1:
+            st.metric(
+                "Career Fit",
+                f"{result['score']}%",
+            )
+
+        with metric2:
+            st.metric(
+                "ATS Score",
+                f"{ats_report.score}%",
+            )
+
+        with metric3:
+            st.metric(
+                "Obrigatórios",
+                f"{ats_report.mandatory_coverage}%",
+            )
+
+        with metric4:
+            st.metric(
+                "Tailoring",
+                f"{tailoring_report.tailoring_score}%",
+            )
+
+        st.markdown("")
+
+        tab_fit, tab_ats, tab_rec, tab_cv = st.tabs(
+            [
+                "🎯 Fit",
+                "🧠 ATS Intelligence",
+                "🧭 Recomendações",
+                "📝 CV Tailoring",
+            ]
+        )
+
+        # =================================================
+        # TAB FIT
+        # =================================================
+
+        with tab_fit:
+
+            fit1, fit2, fit3 = st.columns(3)
+
+            with fit1:
                 st.metric(
                     "Classificação",
                     result["compatibility"],
                 )
 
-            with metric3:
+            with fit2:
                 st.metric(
-                    "Competências analisadas",
-                    len(result["matches"]),
+                    "Cobertura",
+                    f"{result['score_details']['coverage']}%",
                 )
 
-            st.markdown("")
+            with fit3:
+                st.metric(
+                    "Requisitos analisados",
+                    result["requirements_count"],
+                )
 
             col_strengths, col_gaps = st.columns(2)
 
@@ -1072,8 +1209,8 @@ elif st.session_state.selected_flow == "curator":
                     else:
 
                         st.info(
-                            "Nenhuma aderência técnica foi identificada "
-                            "nos termos analisados."
+                            "Nenhuma aderência foi identificada "
+                            "nos requisitos analisados."
                         )
 
             with col_gaps:
@@ -1096,17 +1233,415 @@ elif st.session_state.selected_flow == "curator":
                     else:
 
                         st.success(
-                            "Nenhuma lacuna identificada nas competências analisadas."
+                            "Nenhuma lacuna foi identificada "
+                            "nos requisitos analisados."
+                        )
+
+            st.markdown(
+                "### Aderência por dimensão"
+            )
+
+            if result["category_summary"]:
+
+                for category, summary in result["category_summary"].items():
+
+                    with st.container(
+                        border=True
+                    ):
+
+                        c1, c2, c3 = st.columns(
+                            [2, 1, 1]
+                        )
+
+                        with c1:
+                            st.write(
+                                f"**{category}**"
+                            )
+
+                        with c2:
+                            st.write(
+                                f"{summary['attended']} de "
+                                f"{summary['total']} atendidos"
+                            )
+
+                        with c3:
+                            st.metric(
+                                "Score",
+                                f"{summary['score']}%",
+                            )
+
+                        st.progress(
+                            summary["score"] / 100
                         )
 
             with st.expander(
-                "Ver detalhamento da análise"
+                "Ver detalhamento do Fit"
             ):
 
                 for item in result["matches"]:
+
                     st.write(
-                        f"**{item.skill}:** {item.status}"
+                        f"**{item.skill}** · "
+                        f"{item.category} · "
+                        f"{item.priority} · "
+                        f"{item.status}"
                     )
+
+        # =================================================
+        # TAB ATS
+        # =================================================
+
+        with tab_ats:
+
+            ats1, ats2, ats3, ats4 = st.columns(4)
+
+            with ats1:
+                st.metric(
+                    "ATS Score",
+                    f"{ats_report.score}%",
+                )
+
+            with ats2:
+                st.metric(
+                    "Classificação",
+                    ats_report.classification,
+                )
+
+            with ats3:
+                st.metric(
+                    "Keywords",
+                    f"{ats_report.keyword_coverage}%",
+                )
+
+            with ats4:
+                seniority_display = (
+                    f"{ats_report.seniority_score}%"
+                    if ats_report.seniority_score is not None
+                    else "N/A"
+                )
+
+                st.metric(
+                    "Senioridade",
+                    seniority_display,
+                )
+
+            a1, a2 = st.columns(2)
+
+            with a1:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Requisitos obrigatórios"
+                    )
+
+                    st.metric(
+                        "Cobertura",
+                        f"{ats_report.mandatory_coverage}%",
+                    )
+
+                    if ats_report.mandatory_gaps:
+
+                        st.markdown(
+                            "**Gaps obrigatórios**"
+                        )
+
+                        for skill in ats_report.mandatory_gaps:
+                            st.warning(
+                                skill
+                            )
+
+                    else:
+
+                        st.success(
+                            "Nenhum gap obrigatório identificado."
+                        )
+
+            with a2:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Diferenciais"
+                    )
+
+                    st.metric(
+                        "Cobertura",
+                        f"{ats_report.preferred_coverage}%",
+                    )
+
+                    if ats_report.preferred_gaps:
+
+                        st.markdown(
+                            "**Diferenciais sem evidência**"
+                        )
+
+                        for skill in ats_report.preferred_gaps:
+                            st.info(
+                                skill
+                            )
+
+                    else:
+
+                        st.success(
+                            "Nenhum gap diferencial identificado."
+                        )
+
+            st.markdown(
+                "### Requisitos detectados"
+            )
+
+            with st.expander(
+                "Ver matriz ATS completa"
+            ):
+
+                for item in ats_report.requirements:
+
+                    status_icon = (
+                        "✓"
+                        if item.status == "Atende"
+                        else "⚠"
+                    )
+
+                    st.write(
+                        f"{status_icon} **{item.skill}** · "
+                        f"{item.category} · "
+                        f"{item.priority} · "
+                        f"{item.status}"
+                    )
+
+        # =================================================
+        # TAB RECOMMENDATIONS
+        # =================================================
+
+        with tab_rec:
+
+            st.markdown(
+                "### Próximas ações prioritárias"
+            )
+
+            if recommendation_report.priority_actions:
+
+                for action in recommendation_report.priority_actions:
+                    st.warning(
+                        action
+                    )
+
+            else:
+
+                st.success(
+                    "Nenhuma ação crítica foi identificada."
+                )
+
+            r1, r2 = st.columns(2)
+
+            with r1:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Posicionamento"
+                    )
+
+                    for item in recommendation_report.positioning_guidance:
+                        st.write(
+                            f"• {item}"
+                        )
+
+                    st.markdown(
+                        "### Currículo"
+                    )
+
+                    for item in recommendation_report.cv_guidance:
+                        st.write(
+                            f"• {item}"
+                        )
+
+            with r2:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Entrevista"
+                    )
+
+                    for item in recommendation_report.interview_guidance:
+                        st.write(
+                            f"• {item}"
+                        )
+
+            with st.expander(
+                "Ver recomendações detalhadas"
+            ):
+
+                for item in recommendation_report.recommendations:
+
+                    st.markdown(
+                        f"#### {item.title}"
+                    )
+
+                    st.write(
+                        f"**Categoria:** {item.category}"
+                    )
+
+                    st.write(
+                        f"**Prioridade:** {item.priority}"
+                    )
+
+                    st.write(
+                        item.action
+                    )
+
+                    st.caption(
+                        item.rationale
+                    )
+
+        # =================================================
+        # TAB CV TAILORING
+        # =================================================
+
+        with tab_cv:
+
+            st.markdown(
+                "### Estratégia de customização"
+            )
+
+            t1, t2 = st.columns(
+                [2, 1]
+            )
+
+            with t1:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Headline sugerida"
+                    )
+
+                    st.write(
+                        tailoring_report.headline
+                    )
+
+                    st.markdown(
+                        "### Resumo profissional sugerido"
+                    )
+
+                    st.write(
+                        tailoring_report.professional_summary
+                    )
+
+            with t2:
+
+                st.metric(
+                    "Tailoring Readiness",
+                    f"{tailoring_report.tailoring_score}%",
+                )
+
+                st.markdown(
+                    "**Competências prioritárias**"
+                )
+
+                st.write(
+                    format_items(
+                        tailoring_report.priority_skills
+                    )
+                )
+
+                st.markdown(
+                    "**Keywords ATS seguras**"
+                )
+
+                st.write(
+                    format_items(
+                        tailoring_report.ats_keywords
+                    )
+                )
+
+            c1, c2 = st.columns(2)
+
+            with c1:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Evidências a destacar"
+                    )
+
+                    for item in tailoring_report.evidence_to_highlight:
+                        st.success(
+                            item
+                        )
+
+                    st.markdown(
+                        "### Recomendações de edição"
+                    )
+
+                    for item in tailoring_report.editing_recommendations:
+                        st.write(
+                            f"• {item}"
+                        )
+
+            with c2:
+
+                with st.container(
+                    border=True
+                ):
+
+                    st.markdown(
+                        "### Gaps que devem ser respeitados"
+                    )
+
+                    if tailoring_report.gaps_to_respect:
+
+                        for item in tailoring_report.gaps_to_respect:
+                            st.warning(
+                                item
+                            )
+
+                    else:
+
+                        st.success(
+                            "Nenhum gap crítico adicional "
+                            "precisa ser protegido no tailoring."
+                        )
+
+                    st.markdown(
+                        "### Ponte para entrevista"
+                    )
+
+                    for item in tailoring_report.interview_bridge:
+                        st.write(
+                            f"• {item}"
+                        )
+
+            st.info(
+                "O CV Tailoring reorganiza e enfatiza evidências "
+                "já existentes. Ele não autoriza incluir experiência, "
+                "competência, cargo, formação ou resultado sem comprovação."
+            )
+
+        st.markdown("")
+
+        if st.button(
+            "🎤 Preparar entrevista para esta oportunidade",
+            type="primary",
+            use_container_width=True,
+        ):
+            reset_coach()
+            st.session_state.selected_flow = "coach"
+            st.rerun()
 
 
 # =========================================================
@@ -1116,22 +1651,56 @@ elif st.session_state.selected_flow == "curator":
 elif st.session_state.selected_flow == "coach":
 
     st.markdown(
-        """
-        <div class="cc-module-header">
-            <div class="cc-agent-label">Coach</div>
-            <h2>🎤 Simulador de Entrevistas</h2>
-            <p>
-                Pratique sua narrativa profissional em uma entrevista
-                estruturada e receba feedback após cada resposta.
-            </p>
-        </div>
-        """,
+        """<div class="cc-module-header">
+<div class="cc-agent-label">Coach 2.0</div>
+<h2>🎤 Simulador de Entrevistas</h2>
+<p>Pratique sua narrativa profissional com perguntas contextualizadas pela oportunidade, pelas forças e pelos gaps identificados.</p>
+</div>""",
         unsafe_allow_html=True,
     )
 
+    ats_report = st.session_state.ats_report
+    tailoring_report = st.session_state.tailoring_report
+    analyzed_job_title = st.session_state.analyzed_job_title
+
     if st.session_state.resume_text:
         st.success(
-            f"Contexto da entrevista: {st.session_state.resume_name}"
+            f"Contexto profissional: {st.session_state.resume_name}"
+        )
+
+    if ats_report and tailoring_report:
+
+        st.success(
+            f"Entrevista contextualizada para: "
+            f"{analyzed_job_title or 'oportunidade analisada'}"
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        with c1:
+            st.metric(
+                "ATS Score",
+                f"{ats_report.score}%",
+            )
+
+        with c2:
+            st.metric(
+                "Obrigatórios",
+                f"{ats_report.mandatory_coverage}%",
+            )
+
+        with c3:
+            st.metric(
+                "Tailoring",
+                f"{tailoring_report.tailoring_score}%",
+            )
+
+    else:
+
+        st.info(
+            "Nenhuma oportunidade foi analisada nesta sessão. "
+            "O Coach funcionará no modo geral. Para perguntas "
+            "contextualizadas, execute primeiro a Análise de Fit."
         )
 
     with st.expander(
@@ -1163,9 +1732,25 @@ elif st.session_state.selected_flow == "coach":
             f"{format_items(structured_profile.management_skills)}"
         )
 
+        if ats_report:
+
+            st.write(
+                f"**Forças para a oportunidade:** "
+                f"{format_items(ats_report.strengths)}"
+            )
+
+            st.write(
+                f"**Gaps obrigatórios:** "
+                f"{format_items(ats_report.mandatory_gaps)}"
+            )
+
     step_number = st.session_state.coach_step
+
     step = get_step(
-        step_number
+        step_number,
+        job_title=analyzed_job_title,
+        ats_report=ats_report,
+        tailoring_report=tailoring_report,
     )
 
     progress_col, status_col = st.columns(
@@ -1194,13 +1779,25 @@ elif st.session_state.selected_flow == "coach":
             step.question
         )
 
+        if step.objective:
+            st.caption(
+                f"Objetivo da etapa: {step.objective}"
+            )
+
+        if step.target_skills:
+            st.info(
+                "Competências prioritárias nesta pergunta: "
+                + ", ".join(step.target_skills)
+            )
+
         current_answer = st.text_area(
             "Sua resposta",
             key=f"coach_answer_{step_number}",
             height=220,
             placeholder=(
                 "Responda como se estivesse em uma entrevista real. "
-                "Procure utilizar exemplos, ações e resultados."
+                "Use contexto, responsabilidade, ação e resultado. "
+                "Sempre que possível, inclua evidências mensuráveis."
             ),
         )
 
@@ -1237,7 +1834,9 @@ elif st.session_state.selected_flow == "coach":
             else:
 
                 feedback = evaluate_answer(
-                    current_answer
+                    current_answer,
+                    target_skills=step.target_skills,
+                    step_number=step_number,
                 )
 
                 st.session_state.coach_answers[
@@ -1258,18 +1857,30 @@ elif st.session_state.selected_flow == "coach":
             "### Feedback do Coach"
         )
 
-        metric1, metric2 = st.columns(2)
+        metric1, metric2, metric3, metric4 = st.columns(4)
 
         with metric1:
             st.metric(
-                "Palavras",
-                feedback["word_count"],
+                "Score",
+                f"{feedback['score']}%",
             )
 
         with metric2:
             st.metric(
-                "Etapa",
-                f"{step_number}/6",
+                "Performance",
+                feedback["performance"],
+            )
+
+        with metric3:
+            st.metric(
+                "STAR",
+                f"{feedback['star_score']}%",
+            )
+
+        with metric4:
+            st.metric(
+                "Palavras",
+                feedback["word_count"],
             )
 
         with st.container(
@@ -1284,6 +1895,53 @@ elif st.session_state.selected_flow == "coach":
                 f"**Evidências identificadas**  \n"
                 f"{feedback['evidence']}"
             )
+
+            if feedback["target_skills"]:
+
+                if feedback["skills_mentioned"]:
+                    st.success(
+                        "**Competências conectadas à resposta:** "
+                        + ", ".join(
+                            feedback["skills_mentioned"]
+                        )
+                    )
+                else:
+                    st.warning(
+                        "A resposta ainda não conecta explicitamente "
+                        "as competências prioritárias desta etapa."
+                    )
+
+            star = feedback["star"]
+
+            star1, star2, star3, star4 = st.columns(4)
+
+            with star1:
+                st.write(
+                    "✓ Contexto"
+                    if star["situation"]
+                    else "○ Contexto"
+                )
+
+            with star2:
+                st.write(
+                    "✓ Responsabilidade"
+                    if star["task"]
+                    else "○ Responsabilidade"
+                )
+
+            with star3:
+                st.write(
+                    "✓ Ação"
+                    if star["action"]
+                    else "○ Ação"
+                )
+
+            with star4:
+                st.write(
+                    "✓ Resultado"
+                    if star["result"]
+                    else "○ Resultado"
+                )
 
             st.info(
                 f"**Recomendação do Coach:** "
@@ -1319,10 +1977,32 @@ elif st.session_state.selected_flow == "coach":
                     st.session_state.coach_answers
                 )
 
-                st.metric(
-                    "Etapas concluídas",
-                    f"{completed}/6",
+                scores = [
+                    item.get("score", 0)
+                    for item in st.session_state.coach_feedback.values()
+                ]
+
+                average_score = (
+                    round(
+                        sum(scores) / len(scores)
+                    )
+                    if scores
+                    else 0
                 )
+
+                result1, result2 = st.columns(2)
+
+                with result1:
+                    st.metric(
+                        "Etapas concluídas",
+                        f"{completed}/6",
+                    )
+
+                with result2:
+                    st.metric(
+                        "Score médio",
+                        f"{average_score}%",
+                    )
 
                 if st.button(
                     "Iniciar nova entrevista",
