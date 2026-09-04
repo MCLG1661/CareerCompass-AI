@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 
 import streamlit as st
 from PIL import Image
@@ -13,10 +14,24 @@ from recommendation_engine import build_recommendations
 from report_engine import build_career_report, report_to_markdown
 from resume_parser import ResumeParserError, extract_resume_text
 from scout_engine import discover_roles
+from persistence_service import (
+    build_career_snapshot,
+    change_application_status,
+    ensure_user,
+    get_analysis_history,
+    get_application_pipeline,
+    get_career_dashboard_metrics,
+    get_opportunity_history,
+    initialize_persistence,
+    persist_application,
+    persist_career_analysis,
+    persist_opportunity,
+    persist_profile,
+)
 
 
 # =========================================================
-# CONFIGURAÇÃO
+# CONFIGURAÃ‡ÃƒO
 # =========================================================
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -26,13 +41,13 @@ ICON_PATH = ROOT_DIR / "careercompass-icon.png"
 PAGE_ICON = (
     Image.open(ICON_PATH)
     if ICON_PATH.exists()
-    else "🧭"
+    else "ðŸ§­"
 )
 
 
 def load_default_profile() -> str:
     if not PROFILE_PATH.exists():
-        return "Perfil profissional não encontrado."
+        return "Perfil profissional nÃ£o encontrado."
 
     return PROFILE_PATH.read_text(
         encoding="utf-8"
@@ -58,6 +73,9 @@ def reset_opportunity_analysis():
     st.session_state.tailoring_report = None
     st.session_state.analyzed_job_title = ""
     st.session_state.analyzed_job_description = ""
+    st.session_state.career_opportunity_id = None
+    st.session_state.career_analysis_id = None
+    st.session_state.career_application_id = None
 
 
 def format_items(
@@ -65,9 +83,9 @@ def format_items(
 ) -> str:
 
     if not items:
-        return "Não identificado"
+        return "NÃ£o identificado"
 
-    return " • ".join(items)
+    return " â€¢ ".join(items)
 
 
 def safe_filename(
@@ -150,6 +168,38 @@ if "analyzed_job_title" not in st.session_state:
 if "analyzed_job_description" not in st.session_state:
     st.session_state.analyzed_job_description = ""
 
+if "career_user_id" not in st.session_state:
+    st.session_state.career_user_id = None
+
+if "career_profile_id" not in st.session_state:
+    st.session_state.career_profile_id = None
+
+if "persisted_profile_signature" not in st.session_state:
+    st.session_state.persisted_profile_signature = None
+
+if "career_opportunity_id" not in st.session_state:
+    st.session_state.career_opportunity_id = None
+
+if "career_analysis_id" not in st.session_state:
+    st.session_state.career_analysis_id = None
+
+if "career_application_id" not in st.session_state:
+    st.session_state.career_application_id = None
+
+if "persistence_ready" not in st.session_state:
+    st.session_state.persistence_ready = False
+
+if "persistence_error" not in st.session_state:
+    st.session_state.persistence_error = None
+
+try:
+    initialize_persistence()
+    st.session_state.persistence_ready = True
+    st.session_state.persistence_error = None
+except Exception as exc:
+    st.session_state.persistence_ready = False
+    st.session_state.persistence_error = str(exc)
+
 
 default_profile = load_default_profile()
 
@@ -161,7 +211,7 @@ profile = (
 
 
 # =========================================================
-# IDENTIDADE VISUAL — CAREERCOMPASS AI 5.0
+# IDENTIDADE VISUAL â€” CAREERCOMPASS AI 5.0
 # =========================================================
 
 st.markdown(
@@ -467,8 +517,8 @@ button[data-baseweb="tab"][aria-selected="true"]{
 def render_html(content: str) -> None:
     """
     Renderiza HTML real.
-    Usa st.html quando disponível para evitar que o Markdown
-    transforme blocos HTML em código literal.
+    Usa st.html quando disponÃ­vel para evitar que o Markdown
+    transforme blocos HTML em cÃ³digo literal.
     """
     if hasattr(st, "html"):
         st.html(content)
@@ -476,7 +526,7 @@ def render_html(content: str) -> None:
         st.markdown(content, unsafe_allow_html=True)
 
 # =========================================================
-# SIDEBAR — DESATIVADA
+# SIDEBAR â€” DESATIVADA
 # =========================================================
 
 # =========================================================
@@ -493,6 +543,40 @@ if not st.session_state.candidate_name_input:
         if structured_profile.candidate_name
         else "Candidato"
     )
+
+profile_signature = hashlib.sha256(
+    profile.encode("utf-8", errors="ignore")
+).hexdigest()
+
+if st.session_state.persistence_ready:
+    try:
+        if st.session_state.career_user_id is None:
+            st.session_state.career_user_id = ensure_user(
+                name=(
+                    structured_profile.candidate_name
+                    if structured_profile.candidate_name
+                    else "CareerCompass User"
+                )
+            )
+
+        if (
+            st.session_state.career_profile_id is None
+            or st.session_state.persisted_profile_signature != profile_signature
+        ):
+            st.session_state.career_profile_id = persist_profile(
+                user_id=st.session_state.career_user_id,
+                raw_profile_text=profile,
+                structured_profile=structured_profile,
+                profile_name=(
+                    st.session_state.resume_name
+                    if st.session_state.resume_text
+                    else "Perfil padrão"
+                ),
+            )
+            st.session_state.persisted_profile_signature = profile_signature
+
+    except Exception as exc:
+        st.session_state.persistence_error = str(exc)
 
 
 # =========================================================
@@ -526,7 +610,7 @@ render_html(
     <div class="cc-user">
         <div class="cc-user-copy">
             <div class="cc-user-name">{candidate_display}</div>
-            <div class="cc-user-status">● Perfil ativo</div>
+            <div class="cc-user-status">â— Perfil ativo</div>
         </div>
         <div class="cc-avatar">{candidate_initials}</div>
     </div>
@@ -534,7 +618,7 @@ render_html(
 """
 )
 
-nav1, nav2, nav3, nav4, nav5 = st.columns(5)
+nav1, nav2, nav3, nav4, nav5, nav6 = st.columns(6)
 
 with nav1:
     if st.button("Overview", key="nav_home", use_container_width=True):
@@ -552,23 +636,28 @@ with nav3:
         st.rerun()
 
 with nav4:
+    if st.button("Candidaturas", key="nav_applications", use_container_width=True):
+        st.session_state.selected_flow = "applications"
+        st.rerun()
+
+with nav5:
     if st.button("Coach", key="nav_coach", use_container_width=True):
         st.session_state.selected_flow = "coach"
         st.rerun()
 
-with nav5:
-    if st.button("Relatórios", key="nav_report", use_container_width=True):
+with nav6:
+    if st.button("RelatÃ³rios", key="nav_report", use_container_width=True):
         st.session_state.selected_flow = "report"
         st.rerun()
 
-with st.expander("Perfil e currículo", expanded=False):
+with st.expander("Perfil e currÃ­culo", expanded=False):
     up_col, info_col = st.columns([1.1, 1.4])
 
     with up_col:
         uploaded_resume = st.file_uploader(
-            "Carregar ou substituir currículo",
+            "Carregar ou substituir currÃ­culo",
             type=["pdf", "docx"],
-            help="Envie um currículo em PDF ou DOCX.",
+            help="Envie um currÃ­culo em PDF ou DOCX.",
             key="top_resume_uploader",
         )
 
@@ -589,6 +678,8 @@ with st.expander("Perfil e currículo", expanded=False):
                     st.session_state.career_report = None
                     st.session_state.career_report_pdf = None
                     st.session_state.candidate_name_input = ""
+                    st.session_state.career_profile_id = None
+                    st.session_state.persisted_profile_signature = None
 
                     reset_coach()
                     reset_opportunity_analysis()
@@ -601,12 +692,18 @@ with st.expander("Perfil e currículo", expanded=False):
         st.write(f"**Perfil ativo:** {candidate_display}")
         st.write(
             f"**Fonte:** "
-            f"{st.session_state.resume_name if st.session_state.resume_text else 'Perfil padrão'}"
+            f"{st.session_state.resume_name if st.session_state.resume_text else 'Perfil padrÃ£o'}"
         )
+
+        if st.session_state.persistence_error:
+            st.caption(
+                "Persistência em modo degradado: "
+                + st.session_state.persistence_error
+            )
 
         if st.session_state.resume_text:
             if st.button(
-                "Voltar ao perfil padrão",
+                "Voltar ao perfil padrÃ£o",
                 key="top_use_default",
             ):
                 st.session_state.resume_text = None
@@ -615,6 +712,8 @@ with st.expander("Perfil e currículo", expanded=False):
                 st.session_state.career_report = None
                 st.session_state.career_report_pdf = None
                 st.session_state.candidate_name_input = ""
+                st.session_state.career_profile_id = None
+                st.session_state.persisted_profile_signature = None
                 reset_coach()
                 reset_opportunity_analysis()
                 st.rerun()
@@ -625,7 +724,7 @@ if st.session_state.selected_flow == "home":
     resume_label = (
         st.session_state.resume_name
         if st.session_state.resume_text
-        else "Perfil padrão"
+        else "Perfil padrÃ£o"
     )
 
     analysis_label = (
@@ -640,15 +739,15 @@ if st.session_state.selected_flow == "home":
     <div class="cc-strip-cell">
         <div class="cc-label">Perfil ativo</div>
         <div class="cc-value">{candidate_display}</div>
-        <div class="cc-sub">{structured_profile.seniority or 'Senioridade não identificada'}</div>
+        <div class="cc-sub">{structured_profile.seniority or 'Senioridade nÃ£o identificada'}</div>
     </div>
     <div class="cc-strip-cell">
-        <div class="cc-label">Currículo</div>
+        <div class="cc-label">CurrÃ­culo</div>
         <div class="cc-value">{resume_label}</div>
-        <div class="cc-sub">Fonte utilizada na análise</div>
+        <div class="cc-sub">Fonte utilizada na anÃ¡lise</div>
     </div>
     <div class="cc-strip-cell">
-        <div class="cc-label">Última análise</div>
+        <div class="cc-label">Ãšltima anÃ¡lise</div>
         <div class="cc-value">{analysis_label}</div>
         <div class="cc-sub">Contexto profissional atual</div>
     </div>
@@ -665,7 +764,7 @@ if st.session_state.selected_flow == "home":
     completeness += 20 if structured_profile.candidate_name else 0
     completeness += 20 if (
         structured_profile.seniority
-        and structured_profile.seniority != "Não identificada"
+        and structured_profile.seniority != "NÃ£o identificada"
     ) else 0
     completeness += min(20, areas_count * 5)
     completeness += min(20, hard_count * 3)
@@ -686,7 +785,7 @@ if st.session_state.selected_flow == "home":
         100
         if (
             structured_profile.seniority
-            and structured_profile.seniority != "Não identificada"
+            and structured_profile.seniority != "NÃ£o identificada"
         )
         else 35
     )
@@ -718,12 +817,12 @@ if st.session_state.selected_flow == "home":
         mandatory = st.session_state.ats_report.mandatory_coverage
         keyword = st.session_state.ats_report.keyword_coverage
         next_copy = (
-            "A oportunidade já possui análise de aderência "
-            "e inteligência ATS."
+            "A oportunidade jÃ¡ possui anÃ¡lise de aderÃªncia "
+            "e inteligÃªncia ATS."
         )
         next_badges = [
             f"ATS {match_score}%",
-            f"Obrigatórios {mandatory}%",
+            f"ObrigatÃ³rios {mandatory}%",
             f"Keywords {keyword}%",
         ]
     else:
@@ -731,7 +830,7 @@ if st.session_state.selected_flow == "home":
         match_score = None
         next_copy = (
             "Cole uma vaga para comparar requisitos, senioridade, "
-            "ATS e estratégia de candidatura."
+            "ATS e estratÃ©gia de candidatura."
         )
         next_badges = [
             "Career Fit",
@@ -756,16 +855,16 @@ if st.session_state.selected_flow == "home":
         activities.append(
             (
                 "CV",
-                "Currículo carregado",
-                st.session_state.resume_name or "Currículo",
+                "CurrÃ­culo carregado",
+                st.session_state.resume_name or "CurrÃ­culo",
             )
         )
 
     if st.session_state.curator_result is not None:
         activities.append(
             (
-                "✓",
-                "Career Fit concluído",
+                "âœ“",
+                "Career Fit concluÃ­do",
                 st.session_state.analyzed_job_title or "Oportunidade",
             )
         )
@@ -808,8 +907,8 @@ if st.session_state.selected_flow == "home":
 
     if not activities:
         activities = [
-            ("•", "Perfil disponível", "Pronto para análise"),
-            ("→", "Próxima ação", "Analise uma oportunidade"),
+            ("â€¢", "Perfil disponÃ­vel", "Pronto para anÃ¡lise"),
+            ("â†’", "PrÃ³xima aÃ§Ã£o", "Analise uma oportunidade"),
         ]
 
     activity_html = "".join(
@@ -847,12 +946,12 @@ if st.session_state.selected_flow == "home":
     </div>
     <div>
         <div class="cc-note">
-            Seu perfil é avaliado por evidências profissionais,
-            competências, senioridade e completude das informações.
+            Seu perfil Ã© avaliado por evidÃªncias profissionais,
+            competÃªncias, senioridade e completude das informaÃ§Ãµes.
         </div>
 
         <div class="cc-bar-row">
-            <span>Competências</span>
+            <span>CompetÃªncias</span>
             <div class="cc-bar">
                 <div class="cc-bar-fill" style="width:{competence_score}%"></div>
             </div>
@@ -860,7 +959,7 @@ if st.session_state.selected_flow == "home":
         </div>
 
         <div class="cc-bar-row">
-            <span>Experiência</span>
+            <span>ExperiÃªncia</span>
             <div class="cc-bar">
                 <div class="cc-bar-fill" style="width:{experience_score}%"></div>
             </div>
@@ -930,7 +1029,7 @@ if st.session_state.selected_flow == "home":
         <div class="cc-dot"></div>
         <div class="cc-step-no">01</div>
         <div class="cc-step-name">Perfil</div>
-        <div class="cc-step-copy">Estruture suas evidências profissionais.</div>
+        <div class="cc-step-copy">Estruture suas evidÃªncias profissionais.</div>
     </div>
     <div class="cc-step">
         <div class="cc-dot"></div>
@@ -948,7 +1047,7 @@ if st.session_state.selected_flow == "home":
         <div class="cc-dot"></div>
         <div class="cc-step-no">04</div>
         <div class="cc-step-name">CV Intelligence</div>
-        <div class="cc-step-copy">Otimize posicionamento e evidências.</div>
+        <div class="cc-step-copy">Otimize posicionamento e evidÃªncias.</div>
     </div>
     <div class="cc-step {'pending' if not st.session_state.coach_feedback else ''}">
         <div class="cc-dot"></div>
@@ -1005,10 +1104,10 @@ if st.session_state.selected_flow == "home":
 <table class="cc-table">
     <thead>
         <tr>
-            <th>Posição</th>
+            <th>PosiÃ§Ã£o</th>
             <th>Fonte</th>
             <th>Match</th>
-            <th>Nível</th>
+            <th>NÃ­vel</th>
         </tr>
     </thead>
     <tbody>{opportunity_rows}</tbody>
@@ -1029,9 +1128,9 @@ if st.session_state.selected_flow == "home":
     if structured_profile.management_skills:
         insight_items.append(
             (
-                "✓",
-                "Competências de gestão",
-                f"{len(structured_profile.management_skills)} competências identificadas",
+                "âœ“",
+                "CompetÃªncias de gestÃ£o",
+                f"{len(structured_profile.management_skills)} competÃªncias identificadas",
             )
         )
 
@@ -1039,7 +1138,7 @@ if st.session_state.selected_flow == "home":
         insight_items.append(
             (
                 "#",
-                "Base técnica",
+                "Base tÃ©cnica",
                 f"{len(structured_profile.hard_skills)} hard skills reconhecidas",
             )
         )
@@ -1047,8 +1146,8 @@ if st.session_state.selected_flow == "home":
     if structured_profile.evidence_terms:
         insight_items.append(
             (
-                "↗",
-                "Evidências profissionais",
+                "â†—",
+                "EvidÃªncias profissionais",
                 f"{len(structured_profile.evidence_terms)} termos de resultado",
             )
         )
@@ -1060,7 +1159,7 @@ if st.session_state.selected_flow == "home":
         insight_items.append(
             (
                 "!",
-                "Gap prioritário",
+                "Gap prioritÃ¡rio",
                 st.session_state.ats_report.mandatory_gaps[0],
             )
         )
@@ -1068,14 +1167,14 @@ if st.session_state.selected_flow == "home":
     if not insight_items:
         insight_items = [
             (
-                "→",
+                "â†’",
                 "Comece pelo Career Fit",
                 "Compare seu perfil com uma vaga real.",
             ),
             (
                 "+",
                 "Amplie o perfil",
-                "Carregue um currículo completo para enriquecer a análise.",
+                "Carregue um currÃ­culo completo para enriquecer a anÃ¡lise.",
             ),
         ]
 
@@ -1096,7 +1195,7 @@ if st.session_state.selected_flow == "home":
         with st.container(border=True):
             render_html(
                 f"""
-<div class="cc-card-kicker">Insights para você</div>
+<div class="cc-card-kicker">Insights para vocÃª</div>
 {insight_html}
 """
             )
@@ -1105,7 +1204,7 @@ if st.session_state.selected_flow == "home":
         with st.container(border=True):
             render_html(
                 """
-<div class="cc-card-kicker">Acessos rápidos</div>
+<div class="cc-card-kicker">Acessos rÃ¡pidos</div>
 """
             )
 
@@ -1138,7 +1237,7 @@ if st.session_state.selected_flow == "home":
                     st.rerun()
 
                 if st.button(
-                    "Relatório",
+                    "RelatÃ³rio",
                     key="quick_report",
                     use_container_width=True,
                 ):
@@ -1157,8 +1256,8 @@ elif st.session_state.selected_flow == "scout":
             <div class="cc-agent-label">Scout</div>
             <h2>Oportunidades</h2>
             <p>
-                Identifique funções profissionais com maior aderência
-                às competências e conhecimentos registrados no perfil ativo.
+                Identifique funÃ§Ãµes profissionais com maior aderÃªncia
+                Ã s competÃªncias e conhecimentos registrados no perfil ativo.
             </p>
         </div>
         """,
@@ -1167,11 +1266,11 @@ elif st.session_state.selected_flow == "scout":
 
     if st.session_state.resume_text:
         st.success(
-            f"Analisando currículo: {st.session_state.resume_name}"
+            f"Analisando currÃ­culo: {st.session_state.resume_name}"
         )
 
     with st.expander(
-        "Ver diagnóstico utilizado pelo Scout"
+        "Ver diagnÃ³stico utilizado pelo Scout"
     ):
 
         st.write(
@@ -1183,7 +1282,7 @@ elif st.session_state.selected_flow == "scout":
         )
 
         st.write(
-            f"**Áreas:** {format_items(structured_profile.areas)}"
+            f"**Ãreas:** {format_items(structured_profile.areas)}"
         )
 
         st.write(
@@ -1192,7 +1291,7 @@ elif st.session_state.selected_flow == "scout":
         )
 
         st.write(
-            f"**Gestão:** "
+            f"**GestÃ£o:** "
             f"{format_items(structured_profile.management_skills)}"
         )
 
@@ -1214,7 +1313,7 @@ elif st.session_state.selected_flow == "scout":
     if results:
 
         st.markdown(
-            "### Ranking de aderência"
+            "### Ranking de aderÃªncia"
         )
 
         top_result = results[0]
@@ -1223,19 +1322,19 @@ elif st.session_state.selected_flow == "scout":
 
         with m1:
             st.metric(
-                "Melhor aderência",
+                "Melhor aderÃªncia",
                 f"{top_result.score}%",
             )
 
         with m2:
             st.metric(
-                "Função prioritária",
+                "FunÃ§Ã£o prioritÃ¡ria",
                 top_result.title,
             )
 
         with m3:
             st.metric(
-                "Funções analisadas",
+                "FunÃ§Ãµes analisadas",
                 len(results),
             )
 
@@ -1272,7 +1371,7 @@ elif st.session_state.selected_flow == "scout":
 
                 with col_score:
                     st.metric(
-                        "Aderência",
+                        "AderÃªncia",
                         f"{result.score}%",
                     )
 
@@ -1291,7 +1390,7 @@ elif st.session_state.selected_flow == "curator":
         """<div class="cc-module-header">
 <div class="cc-agent-label">Curator 2.0</div>
 <h2>Career Fit + ATS Intelligence</h2>
-<p>Compare o perfil ativo com uma oportunidade, avalie aderência, cobertura ATS, gaps, recomendações e estratégia de customização do currículo.</p>
+<p>Compare o perfil ativo com uma oportunidade, avalie aderÃªncia, cobertura ATS, gaps, recomendaÃ§Ãµes e estratÃ©gia de customizaÃ§Ã£o do currÃ­culo.</p>
 </div>""",
         unsafe_allow_html=True,
     )
@@ -1316,19 +1415,19 @@ elif st.session_state.selected_flow == "curator":
             )
 
             job_title = st.text_input(
-                "Cargo / título da oportunidade",
+                "Cargo / tÃ­tulo da oportunidade",
                 key="job_title_input",
                 placeholder="Ex.: Gerente de Projetos e Performance",
             )
 
             job_description = st.text_area(
-                "Descrição da vaga",
+                "DescriÃ§Ã£o da vaga",
                 key="job_description_input",
                 height=320,
                 placeholder=(
-                    "Cole aqui a descrição completa da oportunidade, "
-                    "incluindo responsabilidades, requisitos obrigatórios, "
-                    "diferenciais e informações sobre a função."
+                    "Cole aqui a descriÃ§Ã£o completa da oportunidade, "
+                    "incluindo responsabilidades, requisitos obrigatÃ³rios, "
+                    "diferenciais e informaÃ§Ãµes sobre a funÃ§Ã£o."
                 ),
             )
 
@@ -1359,7 +1458,7 @@ elif st.session_state.selected_flow == "curator":
             )
 
             st.write(
-                f"**Áreas:** "
+                f"**Ãreas:** "
                 f"{format_items(structured_profile.areas)}"
             )
 
@@ -1374,7 +1473,7 @@ elif st.session_state.selected_flow == "curator":
             )
 
             st.caption(
-                "O Curator 2.0 usa o currículo ativo como fonte de evidências."
+                "O Curator 2.0 usa o currÃ­culo ativo como fonte de evidÃªncias."
             )
 
     if analyze:
@@ -1382,7 +1481,7 @@ elif st.session_state.selected_flow == "curator":
         if not job_description.strip():
 
             st.warning(
-                "Cole a descrição da vaga antes de iniciar a análise."
+                "Cole a descriÃ§Ã£o da vaga antes de iniciar a anÃ¡lise."
             )
 
         else:
@@ -1394,7 +1493,7 @@ elif st.session_state.selected_flow == "curator":
             )
 
             with st.spinner(
-                "Executando Fit, ATS, recomendações e CV Tailoring..."
+                "Executando Fit, ATS, recomendaÃ§Ãµes e CV Tailoring..."
             ):
 
                 curator_result = analyze_compatibility(
@@ -1425,6 +1524,37 @@ elif st.session_state.selected_flow == "curator":
             st.session_state.tailoring_report = tailoring_report
             st.session_state.analyzed_job_title = analyzed_title
             st.session_state.analyzed_job_description = job_description
+            st.session_state.career_application_id = None
+
+            if (
+                st.session_state.persistence_ready
+                and st.session_state.career_user_id
+                and st.session_state.career_profile_id
+            ):
+                try:
+                    opportunity_id = persist_opportunity(
+                        user_id=st.session_state.career_user_id,
+                        job_title=analyzed_title,
+                        job_description=job_description,
+                        source="Career Fit",
+                    )
+
+                    analysis_id = persist_career_analysis(
+                        user_id=st.session_state.career_user_id,
+                        profile_id=st.session_state.career_profile_id,
+                        opportunity_id=opportunity_id,
+                        career_fit_report=curator_result,
+                        ats_report=ats_report,
+                        recommendation_report=recommendation_report,
+                        tailoring_report=tailoring_report,
+                    )
+
+                    st.session_state.career_opportunity_id = opportunity_id
+                    st.session_state.career_analysis_id = analysis_id
+                    st.session_state.persistence_error = None
+
+                except Exception as exc:
+                    st.session_state.persistence_error = str(exc)
 
             reset_coach()
 
@@ -1441,7 +1571,7 @@ elif st.session_state.selected_flow == "curator":
     ):
 
         st.markdown(
-            "## Diagnóstico integrado"
+            "## DiagnÃ³stico integrado"
         )
 
         if st.session_state.analyzed_job_title:
@@ -1466,7 +1596,7 @@ elif st.session_state.selected_flow == "curator":
 
         with metric3:
             st.metric(
-                "Obrigatórios",
+                "ObrigatÃ³rios",
                 f"{ats_report.mandatory_coverage}%",
             )
 
@@ -1480,10 +1610,10 @@ elif st.session_state.selected_flow == "curator":
 
         tab_fit, tab_ats, tab_rec, tab_cv = st.tabs(
             [
-                "🎯 Fit",
-                "🧠 ATS Intelligence",
-                "🧭 Recomendações",
-                "📝 CV Tailoring",
+                "ðŸŽ¯ Fit",
+                "ðŸ§  ATS Intelligence",
+                "ðŸ§­ RecomendaÃ§Ãµes",
+                "ðŸ“ CV Tailoring",
             ]
         )
 
@@ -1497,7 +1627,7 @@ elif st.session_state.selected_flow == "curator":
 
             with fit1:
                 st.metric(
-                    "Classificação",
+                    "ClassificaÃ§Ã£o",
                     result["compatibility"],
                 )
 
@@ -1522,7 +1652,7 @@ elif st.session_state.selected_flow == "curator":
                 ):
 
                     st.markdown(
-                        "### ✓ Aderências"
+                        "### âœ“ AderÃªncias"
                     )
 
                     if result["strengths"]:
@@ -1535,7 +1665,7 @@ elif st.session_state.selected_flow == "curator":
                     else:
 
                         st.info(
-                            "Nenhuma aderência foi identificada "
+                            "Nenhuma aderÃªncia foi identificada "
                             "nos requisitos analisados."
                         )
 
@@ -1546,7 +1676,7 @@ elif st.session_state.selected_flow == "curator":
                 ):
 
                     st.markdown(
-                        "### ⚠ Pontos sem evidência"
+                        "### âš  Pontos sem evidÃªncia"
                     )
 
                     if result["gaps"]:
@@ -1564,7 +1694,7 @@ elif st.session_state.selected_flow == "curator":
                         )
 
             st.markdown(
-                "### Aderência por dimensão"
+                "### AderÃªncia por dimensÃ£o"
             )
 
             if result["category_summary"]:
@@ -1607,9 +1737,9 @@ elif st.session_state.selected_flow == "curator":
                 for item in result["matches"]:
 
                     st.write(
-                        f"**{item.skill}** · "
-                        f"{item.category} · "
-                        f"{item.priority} · "
+                        f"**{item.skill}** Â· "
+                        f"{item.category} Â· "
+                        f"{item.priority} Â· "
                         f"{item.status}"
                     )
 
@@ -1629,7 +1759,7 @@ elif st.session_state.selected_flow == "curator":
 
             with ats2:
                 st.metric(
-                    "Classificação",
+                    "ClassificaÃ§Ã£o",
                     ats_report.classification,
                 )
 
@@ -1660,7 +1790,7 @@ elif st.session_state.selected_flow == "curator":
                 ):
 
                     st.markdown(
-                        "### Requisitos obrigatórios"
+                        "### Requisitos obrigatÃ³rios"
                     )
 
                     st.metric(
@@ -1671,7 +1801,7 @@ elif st.session_state.selected_flow == "curator":
                     if ats_report.mandatory_gaps:
 
                         st.markdown(
-                            "**Gaps obrigatórios**"
+                            "**Gaps obrigatÃ³rios**"
                         )
 
                         for skill in ats_report.mandatory_gaps:
@@ -1682,7 +1812,7 @@ elif st.session_state.selected_flow == "curator":
                     else:
 
                         st.success(
-                            "Nenhum gap obrigatório identificado."
+                            "Nenhum gap obrigatÃ³rio identificado."
                         )
 
             with a2:
@@ -1703,7 +1833,7 @@ elif st.session_state.selected_flow == "curator":
                     if ats_report.preferred_gaps:
 
                         st.markdown(
-                            "**Diferenciais sem evidência**"
+                            "**Diferenciais sem evidÃªncia**"
                         )
 
                         for skill in ats_report.preferred_gaps:
@@ -1728,15 +1858,15 @@ elif st.session_state.selected_flow == "curator":
                 for item in ats_report.requirements:
 
                     status_icon = (
-                        "✓"
+                        "âœ“"
                         if item.status == "Atende"
-                        else "⚠"
+                        else "âš "
                     )
 
                     st.write(
-                        f"{status_icon} **{item.skill}** · "
-                        f"{item.category} · "
-                        f"{item.priority} · "
+                        f"{status_icon} **{item.skill}** Â· "
+                        f"{item.category} Â· "
+                        f"{item.priority} Â· "
                         f"{item.status}"
                     )
 
@@ -1747,7 +1877,7 @@ elif st.session_state.selected_flow == "curator":
         with tab_rec:
 
             st.markdown(
-                "### Próximas ações prioritárias"
+                "### PrÃ³ximas aÃ§Ãµes prioritÃ¡rias"
             )
 
             if recommendation_report.priority_actions:
@@ -1760,7 +1890,7 @@ elif st.session_state.selected_flow == "curator":
             else:
 
                 st.success(
-                    "Nenhuma ação crítica foi identificada."
+                    "Nenhuma aÃ§Ã£o crÃ­tica foi identificada."
                 )
 
             r1, r2 = st.columns(2)
@@ -1777,16 +1907,16 @@ elif st.session_state.selected_flow == "curator":
 
                     for item in recommendation_report.positioning_guidance:
                         st.write(
-                            f"• {item}"
+                            f"â€¢ {item}"
                         )
 
                     st.markdown(
-                        "### Currículo"
+                        "### CurrÃ­culo"
                     )
 
                     for item in recommendation_report.cv_guidance:
                         st.write(
-                            f"• {item}"
+                            f"â€¢ {item}"
                         )
 
             with r2:
@@ -1801,11 +1931,11 @@ elif st.session_state.selected_flow == "curator":
 
                     for item in recommendation_report.interview_guidance:
                         st.write(
-                            f"• {item}"
+                            f"â€¢ {item}"
                         )
 
             with st.expander(
-                "Ver recomendações detalhadas"
+                "Ver recomendaÃ§Ãµes detalhadas"
             ):
 
                 for item in recommendation_report.recommendations:
@@ -1837,7 +1967,7 @@ elif st.session_state.selected_flow == "curator":
         with tab_cv:
 
             st.markdown(
-                "### Estratégia de customização"
+                "### EstratÃ©gia de customizaÃ§Ã£o"
             )
 
             t1, t2 = st.columns(
@@ -1874,7 +2004,7 @@ elif st.session_state.selected_flow == "curator":
                 )
 
                 st.markdown(
-                    "**Competências prioritárias**"
+                    "**CompetÃªncias prioritÃ¡rias**"
                 )
 
                 st.write(
@@ -1902,7 +2032,7 @@ elif st.session_state.selected_flow == "curator":
                 ):
 
                     st.markdown(
-                        "### Evidências a destacar"
+                        "### EvidÃªncias a destacar"
                     )
 
                     for item in tailoring_report.evidence_to_highlight:
@@ -1911,12 +2041,12 @@ elif st.session_state.selected_flow == "curator":
                         )
 
                     st.markdown(
-                        "### Recomendações de edição"
+                        "### RecomendaÃ§Ãµes de ediÃ§Ã£o"
                     )
 
                     for item in tailoring_report.editing_recommendations:
                         st.write(
-                            f"• {item}"
+                            f"â€¢ {item}"
                         )
 
             with c2:
@@ -1939,7 +2069,7 @@ elif st.session_state.selected_flow == "curator":
                     else:
 
                         st.success(
-                            "Nenhum gap crítico adicional "
+                            "Nenhum gap crÃ­tico adicional "
                             "precisa ser protegido no tailoring."
                         )
 
@@ -1949,25 +2079,279 @@ elif st.session_state.selected_flow == "curator":
 
                     for item in tailoring_report.interview_bridge:
                         st.write(
-                            f"• {item}"
+                            f"â€¢ {item}"
                         )
 
             st.info(
-                "O CV Tailoring reorganiza e enfatiza evidências "
-                "já existentes. Ele não autoriza incluir experiência, "
-                "competência, cargo, formação ou resultado sem comprovação."
+                "O CV Tailoring reorganiza e enfatiza evidÃªncias "
+                "jÃ¡ existentes. Ele nÃ£o autoriza incluir experiÃªncia, "
+                "competÃªncia, cargo, formaÃ§Ã£o ou resultado sem comprovaÃ§Ã£o."
             )
 
         st.markdown("")
 
-        if st.button(
-            "🎤 Preparar entrevista para esta oportunidade",
-            type="primary",
-            use_container_width=True,
-        ):
+        tracking_col, interview_col = st.columns(2)
+
+        with tracking_col:
+            if st.session_state.career_application_id:
+                st.success("Oportunidade adicionada ao acompanhamento.")
+            elif (
+                st.session_state.persistence_ready
+                and st.session_state.career_user_id
+                and st.session_state.career_opportunity_id
+            ):
+                if st.button(
+                    "Adicionar às candidaturas",
+                    key="add_application_current",
+                    use_container_width=True,
+                ):
+                    try:
+                        st.session_state.career_application_id = persist_application(
+                            user_id=st.session_state.career_user_id,
+                            opportunity_id=st.session_state.career_opportunity_id,
+                            analysis_id=st.session_state.career_analysis_id,
+                            status="planned",
+                        )
+                        st.session_state.persistence_error = None
+                        st.rerun()
+                    except Exception as exc:
+                        st.session_state.persistence_error = str(exc)
+            else:
+                st.caption(
+                    "Acompanhamento ficará disponível após a persistência da análise."
+                )
+
+        with interview_col:
+            prepare_interview = st.button(
+                "ðŸŽ¤ Preparar entrevista para esta oportunidade",
+                type="primary",
+                use_container_width=True,
+            )
+
+        if prepare_interview:
             reset_coach()
             st.session_state.selected_flow = "coach"
             st.rerun()
+
+
+# =========================================================
+# APPLICATION TRACKER
+# =========================================================
+
+elif st.session_state.selected_flow == "applications":
+
+    st.markdown(
+        """<div class="cc-module-header">
+<div class="cc-agent-label">Career Pipeline</div>
+<h2>Candidaturas</h2>
+<p>Acompanhe oportunidades analisadas, evolução das candidaturas e indicadores da sua jornada profissional.</p>
+</div>""",
+        unsafe_allow_html=True,
+    )
+
+    if not st.session_state.persistence_ready:
+        st.error(
+            "A camada de persistência não está disponível nesta sessão."
+        )
+        if st.session_state.persistence_error:
+            st.caption(st.session_state.persistence_error)
+
+    elif not st.session_state.career_user_id:
+        st.info("Nenhum usuário persistente foi inicializado.")
+
+    else:
+        try:
+            metrics = get_career_dashboard_metrics(
+                st.session_state.career_user_id
+            )
+            applications = get_application_pipeline(
+                st.session_state.career_user_id
+            )
+            analyses_history = get_analysis_history(
+                st.session_state.career_user_id,
+                limit=10,
+            )
+            opportunity_history = get_opportunity_history(
+                st.session_state.career_user_id,
+                limit=10,
+            )
+
+            m1, m2, m3, m4 = st.columns(4)
+
+            with m1:
+                st.metric(
+                    "Análises",
+                    metrics.get("total_analyses", 0),
+                )
+
+            with m2:
+                st.metric(
+                    "Candidaturas",
+                    metrics.get("total_applications", 0),
+                )
+
+            with m3:
+                st.metric(
+                    "Entrevistas",
+                    metrics.get("interviews", 0),
+                )
+
+            with m4:
+                st.metric(
+                    "Conversão em entrevista",
+                    f"{metrics.get('interview_conversion', 0)}%",
+                )
+
+            st.markdown("### Pipeline")
+
+            visible_applications = [
+                item
+                for item in applications
+                if item.get("company") != "CareerCompass Test Company"
+            ]
+
+            if not visible_applications:
+                st.info(
+                    "Nenhuma candidatura real registrada ainda. "
+                    "Analise uma oportunidade no Career Fit e use "
+                    "'Adicionar às candidaturas'."
+                )
+
+            status_labels = {
+                "planned": "Planejada",
+                "applied": "Candidatado",
+                "interview": "Entrevista",
+                "offer": "Oferta",
+                "rejected": "Não avançou",
+                "withdrawn": "Retirada",
+            }
+
+            status_options = list(status_labels.keys())
+
+            for application in visible_applications:
+                application_id = application["id"]
+                current_status = application.get("status", "planned")
+
+                with st.container(border=True):
+                    left, middle, right = st.columns(
+                        [2.2, 1.1, 1],
+                        gap="medium",
+                    )
+
+                    with left:
+                        st.markdown(
+                            f"### {application.get('job_title') or 'Oportunidade'}"
+                        )
+                        st.caption(
+                            application.get("company")
+                            or "Empresa não informada"
+                        )
+
+                        created_at = application.get("created_at")
+                        if created_at:
+                            st.write(
+                                f"**Registrada em:** {created_at[:10]}"
+                            )
+
+                    with middle:
+                        selected_status = st.selectbox(
+                            "Status",
+                            options=status_options,
+                            index=(
+                                status_options.index(current_status)
+                                if current_status in status_options
+                                else 0
+                            ),
+                            format_func=lambda value: status_labels[value],
+                            key=f"application_status_{application_id}",
+                        )
+
+                    with right:
+                        st.write("")
+                        st.write("")
+                        if st.button(
+                            "Atualizar",
+                            key=f"update_application_{application_id}",
+                            use_container_width=True,
+                        ):
+                            try:
+                                change_application_status(
+                                    application_id=application_id,
+                                    status=selected_status,
+                                )
+                                st.session_state.persistence_error = None
+                                st.rerun()
+                            except Exception as exc:
+                                st.session_state.persistence_error = str(exc)
+
+            st.markdown("### Career Intelligence histórico")
+
+            h1, h2, h3 = st.columns(3)
+
+            with h1:
+                st.metric(
+                    "Career Fit médio",
+                    f"{metrics.get('avg_career_fit', 0)}%",
+                )
+
+            with h2:
+                st.metric(
+                    "ATS médio",
+                    f"{metrics.get('avg_ats_score', 0)}%",
+                )
+
+            with h3:
+                st.metric(
+                    "Melhor Career Fit",
+                    f"{metrics.get('best_career_fit', 0)}%",
+                )
+
+            with st.expander(
+                "Ver histórico de análises",
+                expanded=False,
+            ):
+                real_analyses = [
+                    item
+                    for item in analyses_history
+                    if item.get("company") != "CareerCompass Test Company"
+                ]
+
+                if real_analyses:
+                    for item in real_analyses:
+                        st.write(
+                            f"**{item.get('job_title') or 'Oportunidade'}** "
+                            f"· Career Fit {item.get('career_fit_score') or 0}% "
+                            f"· ATS {item.get('ats_score') or 0}% "
+                            f"· Tailoring {item.get('tailoring_score') or 0}%"
+                        )
+                else:
+                    st.caption("Nenhuma análise real persistida ainda.")
+
+            with st.expander(
+                "Ver oportunidades registradas",
+                expanded=False,
+            ):
+                real_opportunities = [
+                    item
+                    for item in opportunity_history
+                    if item.get("company") != "CareerCompass Test Company"
+                ]
+
+                if real_opportunities:
+                    for item in real_opportunities:
+                        st.write(
+                            f"**{item.get('job_title') or 'Oportunidade'}** "
+                            f"· {item.get('status') or 'analyzed'}"
+                        )
+                else:
+                    st.caption("Nenhuma oportunidade real persistida ainda.")
+
+        except Exception as exc:
+            st.session_state.persistence_error = str(exc)
+            st.error(
+                "Não foi possível carregar o histórico persistente."
+            )
+            st.caption(str(exc))
 
 
 # =========================================================
@@ -1980,7 +2364,7 @@ elif st.session_state.selected_flow == "coach":
         """<div class="cc-module-header">
 <div class="cc-agent-label">Coach 2.0</div>
 <h2>Interview Coach</h2>
-<p>Pratique sua narrativa profissional com perguntas contextualizadas pela oportunidade, pelas forças e pelos gaps identificados.</p>
+<p>Pratique sua narrativa profissional com perguntas contextualizadas pela oportunidade, pelas forÃ§as e pelos gaps identificados.</p>
 </div>""",
         unsafe_allow_html=True,
     )
@@ -2011,7 +2395,7 @@ elif st.session_state.selected_flow == "coach":
 
         with c2:
             st.metric(
-                "Obrigatórios",
+                "ObrigatÃ³rios",
                 f"{ats_report.mandatory_coverage}%",
             )
 
@@ -2024,9 +2408,9 @@ elif st.session_state.selected_flow == "coach":
     else:
 
         st.info(
-            "Nenhuma oportunidade foi analisada nesta sessão. "
-            "O Coach funcionará no modo geral. Para perguntas "
-            "contextualizadas, execute primeiro a Análise de Fit."
+            "Nenhuma oportunidade foi analisada nesta sessÃ£o. "
+            "O Coach funcionarÃ¡ no modo geral. Para perguntas "
+            "contextualizadas, execute primeiro a AnÃ¡lise de Fit."
         )
 
     with st.expander(
@@ -2044,29 +2428,29 @@ elif st.session_state.selected_flow == "coach":
         )
 
         st.write(
-            f"**Áreas de atuação:** "
+            f"**Ãreas de atuaÃ§Ã£o:** "
             f"{format_items(structured_profile.areas)}"
         )
 
         st.write(
-            f"**Competências:** "
+            f"**CompetÃªncias:** "
             f"{format_items(structured_profile.hard_skills)}"
         )
 
         st.write(
-            f"**Gestão:** "
+            f"**GestÃ£o:** "
             f"{format_items(structured_profile.management_skills)}"
         )
 
         if ats_report:
 
             st.write(
-                f"**Forças para a oportunidade:** "
+                f"**ForÃ§as para a oportunidade:** "
                 f"{format_items(ats_report.strengths)}"
             )
 
             st.write(
-                f"**Gaps obrigatórios:** "
+                f"**Gaps obrigatÃ³rios:** "
                 f"{format_items(ats_report.mandatory_gaps)}"
             )
 
@@ -2112,7 +2496,7 @@ elif st.session_state.selected_flow == "coach":
 
         if step.target_skills:
             st.info(
-                "Competências prioritárias nesta pergunta: "
+                "CompetÃªncias prioritÃ¡rias nesta pergunta: "
                 + ", ".join(step.target_skills)
             )
 
@@ -2122,8 +2506,8 @@ elif st.session_state.selected_flow == "coach":
             height=220,
             placeholder=(
                 "Responda como se estivesse em uma entrevista real. "
-                "Use contexto, responsabilidade, ação e resultado. "
-                "Sempre que possível, inclua evidências mensuráveis."
+                "Use contexto, responsabilidade, aÃ§Ã£o e resultado. "
+                "Sempre que possÃ­vel, inclua evidÃªncias mensurÃ¡veis."
             ),
         )
 
@@ -2142,7 +2526,7 @@ elif st.session_state.selected_flow == "coach":
         with col_reset:
 
             if st.button(
-                "Reiniciar simulação",
+                "Reiniciar simulaÃ§Ã£o",
                 use_container_width=True,
             ):
 
@@ -2154,7 +2538,7 @@ elif st.session_state.selected_flow == "coach":
             if not current_answer.strip():
 
                 st.warning(
-                    "Digite sua resposta antes de solicitar a avaliação."
+                    "Digite sua resposta antes de solicitar a avaliaÃ§Ã£o."
                 )
 
             else:
@@ -2218,7 +2602,7 @@ elif st.session_state.selected_flow == "coach":
             )
 
             st.markdown(
-                f"**Evidências identificadas**  \n"
+                f"**EvidÃªncias identificadas**  \n"
                 f"{feedback['evidence']}"
             )
 
@@ -2226,15 +2610,15 @@ elif st.session_state.selected_flow == "coach":
 
                 if feedback["skills_mentioned"]:
                     st.success(
-                        "**Competências conectadas à resposta:** "
+                        "**CompetÃªncias conectadas Ã  resposta:** "
                         + ", ".join(
                             feedback["skills_mentioned"]
                         )
                     )
                 else:
                     st.warning(
-                        "A resposta ainda não conecta explicitamente "
-                        "as competências prioritárias desta etapa."
+                        "A resposta ainda nÃ£o conecta explicitamente "
+                        "as competÃªncias prioritÃ¡rias desta etapa."
                     )
 
             star = feedback["star"]
@@ -2243,41 +2627,41 @@ elif st.session_state.selected_flow == "coach":
 
             with star1:
                 st.write(
-                    "✓ Contexto"
+                    "âœ“ Contexto"
                     if star["situation"]
-                    else "○ Contexto"
+                    else "â—‹ Contexto"
                 )
 
             with star2:
                 st.write(
-                    "✓ Responsabilidade"
+                    "âœ“ Responsabilidade"
                     if star["task"]
-                    else "○ Responsabilidade"
+                    else "â—‹ Responsabilidade"
                 )
 
             with star3:
                 st.write(
-                    "✓ Ação"
+                    "âœ“ AÃ§Ã£o"
                     if star["action"]
-                    else "○ Ação"
+                    else "â—‹ AÃ§Ã£o"
                 )
 
             with star4:
                 st.write(
-                    "✓ Resultado"
+                    "âœ“ Resultado"
                     if star["result"]
-                    else "○ Resultado"
+                    else "â—‹ Resultado"
                 )
 
             st.info(
-                f"**Recomendação do Coach:** "
+                f"**RecomendaÃ§Ã£o do Coach:** "
                 f"{feedback['recommendation']}"
             )
 
         if step_number < 6:
 
             if st.button(
-                "Continuar para próxima etapa →",
+                "Continuar para prÃ³xima etapa â†’",
                 type="primary",
                 use_container_width=True,
             ):
@@ -2288,7 +2672,7 @@ elif st.session_state.selected_flow == "coach":
         else:
 
             st.success(
-                "Simulação concluída."
+                "SimulaÃ§Ã£o concluÃ­da."
             )
 
             with st.container(
@@ -2296,7 +2680,7 @@ elif st.session_state.selected_flow == "coach":
             ):
 
                 st.markdown(
-                    "### Resultado da simulação"
+                    "### Resultado da simulaÃ§Ã£o"
                 )
 
                 completed = len(
@@ -2320,13 +2704,13 @@ elif st.session_state.selected_flow == "coach":
 
                 with result1:
                     st.metric(
-                        "Etapas concluídas",
+                        "Etapas concluÃ­das",
                         f"{completed}/6",
                     )
 
                 with result2:
                     st.metric(
-                        "Score médio",
+                        "Score mÃ©dio",
                         f"{average_score}%",
                     )
 
@@ -2340,7 +2724,7 @@ elif st.session_state.selected_flow == "coach":
 
 
 # =========================================================
-# RELATÓRIO PROFISSIONAL
+# RELATÃ“RIO PROFISSIONAL
 # =========================================================
 
 elif st.session_state.selected_flow == "report":
@@ -2351,8 +2735,8 @@ elif st.session_state.selected_flow == "report":
             <div class="cc-agent-label">Career Assessment</div>
             <h2>Career Report</h2>
             <p>
-                Consolide as principais informações identificadas no currículo
-                e nas análises realizadas pelo CareerCompass AI.
+                Consolide as principais informaÃ§Ãµes identificadas no currÃ­culo
+                e nas anÃ¡lises realizadas pelo CareerCompass AI.
             </p>
         </div>
         """,
@@ -2365,16 +2749,16 @@ elif st.session_state.selected_flow == "report":
         )
     else:
         st.info(
-            "O relatório será gerado a partir do perfil profissional padrão."
+            "O relatÃ³rio serÃ¡ gerado a partir do perfil profissional padrÃ£o."
         )
 
     st.markdown(
-        "### Identificação do candidato"
+        "### IdentificaÃ§Ã£o do candidato"
     )
 
     st.caption(
-        "O CareerCompass sugere o nome identificado no currículo. "
-        "Revise ou edite antes de gerar o relatório."
+        "O CareerCompass sugere o nome identificado no currÃ­culo. "
+        "Revise ou edite antes de gerar o relatÃ³rio."
     )
 
     candidate_name = st.text_input(
@@ -2395,19 +2779,19 @@ elif st.session_state.selected_flow == "report":
     if st.session_state.scout_results:
 
         st.success(
-            "Resultados do Radar de Oportunidades disponíveis "
-            "para inclusão no relatório."
+            "Resultados do Radar de Oportunidades disponÃ­veis "
+            "para inclusÃ£o no relatÃ³rio."
         )
 
     else:
 
         st.info(
-            "O Radar de Oportunidades ainda não foi executado nesta sessão. "
-            "O relatório pode ser gerado mesmo assim."
+            "O Radar de Oportunidades ainda nÃ£o foi executado nesta sessÃ£o. "
+            "O relatÃ³rio pode ser gerado mesmo assim."
         )
 
     generate_report = st.button(
-        "Gerar relatório profissional",
+        "Gerar relatÃ³rio profissional",
         type="primary",
         use_container_width=True,
     )
@@ -2417,7 +2801,7 @@ elif st.session_state.selected_flow == "report":
         source_name = (
             st.session_state.resume_name
             if st.session_state.resume_name
-            else "Perfil profissional padrão"
+            else "Perfil profissional padrÃ£o"
         )
 
         report = build_career_report(
@@ -2446,12 +2830,12 @@ elif st.session_state.selected_flow == "report":
             st.session_state.career_report_pdf = None
 
             st.error(
-                "O relatório foi gerado, mas ocorreu um erro "
-                "durante a criação do PDF."
+                "O relatÃ³rio foi gerado, mas ocorreu um erro "
+                "durante a criaÃ§Ã£o do PDF."
             )
 
             st.caption(
-                f"Detalhe técnico: {exc}"
+                f"Detalhe tÃ©cnico: {exc}"
             )
 
     report = st.session_state.career_report
@@ -2472,7 +2856,7 @@ elif st.session_state.selected_flow == "report":
 
         with m2:
             st.metric(
-                "Áreas identificadas",
+                "Ãreas identificadas",
                 len(report.areas),
             )
 
@@ -2499,7 +2883,7 @@ elif st.session_state.selected_flow == "report":
             )
 
             st.write(
-                f"**Data da análise:** {report.generated_at}"
+                f"**Data da anÃ¡lise:** {report.generated_at}"
             )
 
             st.write(
@@ -2528,11 +2912,11 @@ elif st.session_state.selected_flow == "report":
             ):
 
                 st.markdown(
-                    "### Principais competências"
+                    "### Principais competÃªncias"
                 )
 
                 st.markdown(
-                    "**Áreas**"
+                    "**Ãreas**"
                 )
 
                 st.write(
@@ -2562,7 +2946,7 @@ elif st.session_state.selected_flow == "report":
                 )
 
                 st.markdown(
-                    "**Gestão**"
+                    "**GestÃ£o**"
                 )
 
                 st.write(
@@ -2578,11 +2962,11 @@ elif st.session_state.selected_flow == "report":
             ):
 
                 st.markdown(
-                    "### Diagnóstico"
+                    "### DiagnÃ³stico"
                 )
 
                 st.markdown(
-                    "**Principais forças**"
+                    "**Principais forÃ§as**"
                 )
 
                 for item in report.strengths:
@@ -2592,7 +2976,7 @@ elif st.session_state.selected_flow == "report":
                     )
 
                 st.markdown(
-                    "**Pontos de atenção**"
+                    "**Pontos de atenÃ§Ã£o**"
                 )
 
                 for item in report.attention_points:
@@ -2639,12 +3023,12 @@ elif st.session_state.selected_flow == "report":
                     with c2:
 
                         st.metric(
-                            "Aderência",
+                            "AderÃªncia",
                             f"{role['score']}%",
                         )
 
         st.markdown(
-            "### Recomendações"
+            "### RecomendaÃ§Ãµes"
         )
 
         with st.container(
@@ -2654,7 +3038,7 @@ elif st.session_state.selected_flow == "report":
             for recommendation in report.recommendations:
 
                 st.write(
-                    f"• {recommendation}"
+                    f"â€¢ {recommendation}"
                 )
 
         markdown_report = report_to_markdown(
@@ -2662,7 +3046,7 @@ elif st.session_state.selected_flow == "report":
         )
 
         with st.expander(
-            "Visualizar relatório completo em Markdown"
+            "Visualizar relatÃ³rio completo em Markdown"
         ):
 
             st.markdown(
@@ -2670,7 +3054,7 @@ elif st.session_state.selected_flow == "report":
             )
 
         st.markdown(
-            "### Exportar relatório"
+            "### Exportar relatÃ³rio"
         )
 
         export_col1, export_col2 = st.columns(2)
@@ -2688,7 +3072,7 @@ elif st.session_state.selected_flow == "report":
                 )
 
                 st.download_button(
-                    label="⬇ Baixar relatório em PDF",
+                    label="â¬‡ Baixar relatÃ³rio em PDF",
                     data=st.session_state.career_report_pdf,
                     file_name=filename,
                     mime="application/pdf",
@@ -2699,7 +3083,7 @@ elif st.session_state.selected_flow == "report":
             else:
 
                 st.warning(
-                    "PDF ainda não disponível para este relatório."
+                    "PDF ainda nÃ£o disponÃ­vel para este relatÃ³rio."
                 )
 
         with export_col2:
@@ -2713,7 +3097,7 @@ elif st.session_state.selected_flow == "report":
             )
 
             st.download_button(
-                label="⬇ Baixar relatório em Markdown",
+                label="â¬‡ Baixar relatÃ³rio em Markdown",
                 data=markdown_report,
                 file_name=markdown_filename,
                 mime="text/markdown",
@@ -2728,7 +3112,7 @@ elif st.session_state.selected_flow == "report":
 st.markdown(
     """
     <div class="cc-footer">
-        CareerCompass AI · Career Intelligence Platform
+        CareerCompass AI Â· Career Intelligence Platform
     </div>
     """,
     unsafe_allow_html=True,
