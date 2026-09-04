@@ -9,30 +9,97 @@ from __future__ import annotations
 
 from typing import Any
 
-from database_engine import (
-    create_application,
-    database_health_check,
-    activate_career_profile,
-    get_active_profile,
-    get_analysis,
-    get_career_metrics,
-    get_career_profile,
-    get_opportunity,
-    get_or_create_default_user,
-    get_user,
-    initialize_database,
-    list_analyses,
-    list_career_profiles,
-    list_applications,
-    list_events,
-    list_opportunities,
-    log_event,
-    rename_career_profile,
-    save_analysis,
-    save_career_profile,
-    save_opportunity,
-    update_application_status,
-)
+# Storage backend selection:
+# - Streamlit Cloud / environment with Supabase Secrets -> Supabase
+# - Local development without Supabase Secrets -> existing SQLite
+#
+# CAREERCOMPASS_STORAGE_BACKEND can explicitly force "sqlite" or "supabase".
+import os
+
+try:
+    import streamlit as st
+except Exception:  # pragma: no cover
+    st = None
+
+
+def _secret_exists(name: str) -> bool:
+    if st is not None:
+        try:
+            if st.secrets.get(name):
+                return True
+        except Exception:
+            pass
+    return bool(os.getenv(name))
+
+
+def _select_storage_backend() -> str:
+    forced = os.getenv("CAREERCOMPASS_STORAGE_BACKEND", "").strip().lower()
+    if forced in {"sqlite", "supabase"}:
+        return forced
+
+    if _secret_exists("SUPABASE_URL") and _secret_exists("SUPABASE_SECRET_KEY"):
+        return "supabase"
+
+    return "sqlite"
+
+
+STORAGE_BACKEND = _select_storage_backend()
+
+if STORAGE_BACKEND == "supabase":
+    from supabase_database_engine import (
+        create_application,
+        database_health_check,
+        activate_career_profile,
+        get_active_profile,
+        get_analysis,
+        get_career_metrics,
+        get_career_profile,
+        get_opportunity,
+        get_or_create_default_user,
+        get_user,
+        initialize_database,
+        list_analyses,
+        list_career_profiles,
+        list_applications,
+        list_events,
+        list_opportunities,
+        log_event,
+        rename_career_profile,
+        save_analysis,
+        save_career_profile,
+        save_opportunity,
+        update_application_status,
+    )
+else:
+    from database_engine import (
+        create_application,
+        database_health_check,
+        activate_career_profile,
+        get_active_profile,
+        get_analysis,
+        get_career_metrics,
+        get_career_profile,
+        get_opportunity,
+        get_or_create_default_user,
+        get_user,
+        initialize_database,
+        list_analyses,
+        list_career_profiles,
+        list_applications,
+        list_events,
+        list_opportunities,
+        log_event,
+        rename_career_profile,
+        save_analysis,
+        save_career_profile,
+        save_opportunity,
+        update_application_status,
+    )
+
+
+def get_storage_backend() -> str:
+    """Return the active persistence backend: 'sqlite' or 'supabase'."""
+    return STORAGE_BACKEND
 
 DEFAULT_USER_NAME = "CareerCompass User"
 DEFAULT_PROFILE_NAME = "Perfil principal"
@@ -40,7 +107,17 @@ DEFAULT_PROFILE_NAME = "Perfil principal"
 
 def initialize_persistence() -> dict[str, Any]:
     initialize_database()
-    return database_health_check()
+    health = database_health_check()
+    if isinstance(health, dict):
+        return {
+            **health,
+            "backend": STORAGE_BACKEND,
+        }
+    return {
+        "status": "ok",
+        "backend": STORAGE_BACKEND,
+        "health": health,
+    }
 
 
 def ensure_user(
@@ -385,6 +462,7 @@ def run_self_test() -> dict[str, Any]:
     user_id = ensure_user(name="CareerCompass User")
     return {
         "status": "ok",
+        "backend": STORAGE_BACKEND,
         "user_id": user_id,
         "metrics": get_career_dashboard_metrics(user_id),
     }
@@ -396,6 +474,7 @@ if __name__ == "__main__":
     print("CareerCompass AI — Persistence Service")
     print("--------------------------------------")
     print(f"Status: {result['status']}")
+    print(f"Backend: {result.get('backend', STORAGE_BACKEND)}")
     print(f"User: {result['user_id']}")
     print()
     print("Career Metrics")
