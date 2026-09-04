@@ -991,10 +991,19 @@ if st.session_state.selected_flow == "home":
         else "Perfil padrão"
     )
 
+    persisted_analysis_title = next(
+        (
+            str(item.get("job_title") or "").strip()
+            for item in career_history
+            if str(item.get("job_title") or "").strip()
+        ),
+        "",
+    )
+
     analysis_label = (
         st.session_state.analyzed_job_title
-        if st.session_state.analyzed_job_title
-        else "Nenhuma oportunidade analisada"
+        or persisted_analysis_title
+        or "Nenhuma oportunidade analisada"
     )
 
     render_html(
