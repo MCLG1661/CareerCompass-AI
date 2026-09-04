@@ -10,6 +10,9 @@ from curator_engine import analyze_compatibility
 from cv_tailoring_engine import tailor_cv
 from decision_engine import build_career_decision
 from gap_intelligence_engine import analyze_career_gaps
+from career_analytics_engine import analyze_career_history
+from application_intelligence_engine import analyze_application_history
+from executive_intelligence_engine import build_executive_intelligence
 from opportunity_engine import analyze_opportunity
 from pdf_engine import build_career_report_pdf
 from profile_engine import build_professional_profile
@@ -949,6 +952,39 @@ with st.expander("Perfil e currículo", expanded=False):
 
 if st.session_state.selected_flow == "home":
 
+    # ---------------------------------------------------------
+    # SPRINT 2 — LONGITUDINAL CAREER INTELLIGENCE
+    # ---------------------------------------------------------
+    career_history = []
+    application_history = []
+    career_analytics = None
+    application_intelligence = None
+    executive_intelligence = None
+
+    if st.session_state.persistence_ready and st.session_state.career_user_id:
+        try:
+            career_history = get_analysis_history(
+                st.session_state.career_user_id,
+                limit=100,
+            )
+            application_history = get_application_pipeline(
+                st.session_state.career_user_id
+            )
+
+            career_analytics = analyze_career_history(
+                career_history
+            )
+            application_intelligence = analyze_application_history(
+                applications=application_history,
+                analyses=career_history,
+            )
+            executive_intelligence = build_executive_intelligence(
+                analyses=career_history,
+                applications=application_history,
+            )
+        except Exception as exc:
+            st.session_state.persistence_error = str(exc)
+
     resume_label = (
         st.session_state.resume_name
         if st.session_state.resume_text
@@ -1036,6 +1072,37 @@ if st.session_state.selected_flow == "home":
     else:
         overall_label = "Build Profile"
 
+    # Quando existe histórico persistido, o Career Intelligence Score deixa de
+    # ser apenas uma leitura estática do perfil e passa a refletir a trajetória.
+    score_note = (
+        "Seu perfil é avaliado por evidências profissionais, "
+        "competências, senioridade e completude das informações."
+    )
+
+    if (
+        executive_intelligence is not None
+        and career_analytics is not None
+        and career_analytics.total_analyses > 0
+    ):
+        overall_score = round(
+            executive_intelligence.career_intelligence_score
+        )
+
+        if overall_score >= 80:
+            overall_label = "Strong Intelligence"
+        elif overall_score >= 65:
+            overall_label = "Competitive"
+        elif overall_score >= 50:
+            overall_label = "Developing"
+        else:
+            overall_label = "Build Momentum"
+
+        score_note = (
+            f"Score longitudinal · {career_analytics.total_analyses} análise(s) · "
+            f"Momentum {executive_intelligence.momentum} · "
+            f"Confiança {executive_intelligence.confidence_score:.0f}%."
+        )
+
     if st.session_state.ats_report is not None:
         next_title = (
             st.session_state.analyzed_job_title
@@ -1073,6 +1140,20 @@ if st.session_state.selected_flow == "home":
             "Career Fit",
             "ATS Intelligence",
             "CV Tailoring",
+        ]
+
+    if (
+        st.session_state.ats_report is None
+        and executive_intelligence is not None
+        and executive_intelligence.next_best_action
+    ):
+        next_title = "Prioridade da trajetória"
+        next_copy = executive_intelligence.next_best_action
+        match_score = None
+        next_badges = [
+            f"Momentum {executive_intelligence.momentum}",
+            f"Career Fit {executive_intelligence.career_fit_average:.0f}%",
+            f"ATS {executive_intelligence.ats_average:.0f}%",
         ]
 
     badges_html = "".join(
@@ -1182,10 +1263,7 @@ if st.session_state.selected_flow == "home":
         <div class="cc-score-label">{overall_label}</div>
     </div>
     <div>
-        <div class="cc-note">
-            Seu perfil é avaliado por evidências profissionais,
-            competências, senioridade e completude das informações.
-        </div>
+        <div class="cc-note">{score_note}</div>
 
         <div class="cc-bar-row">
             <span>Competências</span>
@@ -1295,6 +1373,165 @@ if st.session_state.selected_flow == "home":
 </div>
 """
         )
+
+    # ---------------------------------------------------------
+    # EXECUTIVE DASHBOARD — SPRINT 2
+    # ---------------------------------------------------------
+    if executive_intelligence is not None:
+        st.markdown("### Executive Career Intelligence")
+
+        ex1, ex2, ex3, ex4, ex5 = st.columns(5)
+
+        with ex1:
+            st.metric(
+                "Career Intelligence",
+                f"{executive_intelligence.career_intelligence_score:.0f}/100",
+            )
+
+        with ex2:
+            trend_delta = (
+                f"{career_analytics.career_fit_trend:+.1f}"
+                if career_analytics is not None
+                else None
+            )
+            st.metric(
+                "Career Fit médio",
+                f"{executive_intelligence.career_fit_average:.1f}%",
+                delta=trend_delta,
+            )
+
+        with ex3:
+            st.metric(
+                "ATS médio",
+                f"{executive_intelligence.ats_average:.1f}%",
+            )
+
+        with ex4:
+            st.metric(
+                "Entrevistas",
+                executive_intelligence.interviews,
+                delta=(
+                    f"{executive_intelligence.interview_rate:.1f}% conversão"
+                    if executive_intelligence.applications
+                    else None
+                ),
+            )
+
+        with ex5:
+            st.metric(
+                "Ofertas",
+                executive_intelligence.offers,
+                delta=(
+                    f"{executive_intelligence.offer_rate:.1f}% conversão"
+                    if executive_intelligence.interviews
+                    else None
+                ),
+            )
+
+        exec_left, exec_right = st.columns(
+            [1.25, 1],
+            gap="medium",
+        )
+
+        with exec_left:
+            with st.container(border=True):
+                st.markdown("#### Inteligência longitudinal")
+                st.write(executive_intelligence.summary)
+
+                if executive_intelligence.executive_insights:
+                    for insight in executive_intelligence.executive_insights[:4]:
+                        st.write(f"• {insight}")
+
+        with exec_right:
+            with st.container(border=True):
+                st.markdown("#### Prioridades")
+
+                if executive_intelligence.development_priorities:
+                    for priority in executive_intelligence.development_priorities[:3]:
+                        st.write(f"• {priority}")
+                elif executive_intelligence.top_risks:
+                    for risk in executive_intelligence.top_risks[:3]:
+                        st.write(f"• {risk}")
+                else:
+                    st.write(
+                        "O histórico ainda não identificou uma prioridade "
+                        "recorrente de desenvolvimento."
+                    )
+
+                st.caption(
+                    f"Momentum: {executive_intelligence.momentum} · "
+                    f"Confiança: {executive_intelligence.confidence_score:.0f}%"
+                )
+
+        if career_analytics is not None and career_analytics.trajectory:
+            with st.expander(
+                "Ver evolução das análises",
+                expanded=False,
+            ):
+                trend_rows = [
+                    {
+                        "Análise": point.index,
+                        "Data": (point.created_at or "")[:10],
+                        "Oportunidade": point.job_title or "Oportunidade",
+                        "Empresa": point.company or "—",
+                        "Career Fit": point.career_fit_score,
+                        "ATS": point.ats_score,
+                        "Tailoring": point.tailoring_score,
+                    }
+                    for point in career_analytics.trajectory[-12:]
+                ]
+                st.dataframe(
+                    trend_rows,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        if (
+            application_intelligence is not None
+            and application_intelligence.profile_performance
+        ):
+            identified_profile_performance = [
+                item
+                for item in application_intelligence.profile_performance
+                if item.profile_id != "perfil_nao_identificado"
+            ]
+
+            if identified_profile_performance:
+                with st.expander(
+                    "Performance por versão de perfil",
+                    expanded=False,
+                ):
+                    profile_name_map = {
+                        item["id"]: (
+                            item.get("profile_name")
+                            or item.get("source_name")
+                            or item["id"]
+                        )
+                        for item in repository_profiles
+                    }
+
+                    performance_rows = [
+                        {
+                            "Perfil": profile_name_map.get(
+                                item.profile_id,
+                                item.profile_id,
+                            ),
+                            "Candidaturas": item.total_applications,
+                            "Entrevistas": item.interviews,
+                            "Ofertas": item.offers,
+                            "Interview Rate": f"{item.interview_rate:.1f}%",
+                            "Offer Rate": f"{item.offer_rate:.1f}%",
+                        }
+                        for item in identified_profile_performance
+                    ]
+
+                    st.dataframe(
+                        performance_rows,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+        st.markdown("")
 
     bottom1, bottom2, bottom3 = st.columns(
         [1.25, .72, .82],
