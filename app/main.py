@@ -1,5 +1,8 @@
 from pathlib import Path
 import hashlib
+import inspect
+
+import persistence_service as persistence_service_module
 
 import streamlit as st
 from PIL import Image
@@ -885,6 +888,8 @@ with st.expander("Diagnóstico temporário de identidade", expanded=True):
                 "Auth conectado: SIM",
                 f"CareerCompass user resolvido: {st.session_state.career_user_id or 'NÃO RESOLVIDO'}",
                 f"Backend: {diagnostic_backend}",
+                f"Módulo persistence_service: {getattr(persistence_service_module, '__file__', 'NÃO IDENTIFICADO')}",
+                f"Assinatura ensure_user: {inspect.signature(persistence_service_module.ensure_user)}",
             ]
         ),
         language="text",
