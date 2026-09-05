@@ -57,6 +57,7 @@ if STORAGE_BACKEND == "supabase":
         get_opportunity,
         get_or_create_default_user,
         get_user,
+        get_user_by_auth_id,
         initialize_database,
         list_analyses,
         list_career_profiles,
@@ -124,18 +125,33 @@ def ensure_user(
     user_id: str | None = None,
     name: str | None = None,
     email: str | None = None,
+    auth_user_id: str | None = None,
 ) -> str:
-    """Return an existing user or the same persistent local user across restarts."""
+    """
+    Resolve the CareerCompass application user.
+
+    Resolution order:
+    1. Existing application user_id, when supplied.
+    2. Supabase Auth identity (auth_user_id), when using the Supabase backend.
+    3. Transitional default-user bootstrap, preserving SQLite compatibility.
+
+    The auth lookup is intentionally Supabase-only so local SQLite development
+    continues to work without requiring auth-specific database functions.
+    """
     if user_id:
         existing_user = get_user(user_id)
         if existing_user:
             return user_id
 
+    if STORAGE_BACKEND == "supabase" and auth_user_id:
+        existing_user = get_user_by_auth_id(auth_user_id)
+        if existing_user:
+            return str(existing_user["id"])
+
     return get_or_create_default_user(
         name=name or DEFAULT_USER_NAME,
         email=email,
     )
-
 
 def persist_profile(
     user_id: str,

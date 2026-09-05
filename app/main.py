@@ -20,6 +20,12 @@ from recommendation_engine import build_recommendations
 from report_engine import build_career_report, report_to_markdown
 from resume_parser import ResumeParserError, extract_resume_text
 from scout_engine import discover_roles
+from auth_engine import (
+    send_password_recovery,
+    sign_in_with_password,
+    sign_out,
+    sign_up,
+)
 from persistence_service import (
     build_career_snapshot,
     change_application_status,
@@ -131,6 +137,151 @@ st.set_page_config(
 
 
 # =========================================================
+# SPRINT 4.3 — SUPABASE AUTH
+# =========================================================
+
+AUTH_SESSION_KEY = "careercompass_auth_session"
+
+
+def _auth_user_name(auth_user) -> str:
+    metadata = getattr(auth_user, "user_metadata", None) or {}
+    return (
+        str(metadata.get("full_name") or "").strip()
+        or str(metadata.get("name") or "").strip()
+        or str(metadata.get("display_name") or "").strip()
+        or str(getattr(auth_user, "email", "") or "").split("@")[0]
+        or "CareerCompass User"
+    )
+
+
+def _clear_app_session_after_logout() -> None:
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+
+
+def render_auth_screen() -> None:
+    st.markdown(
+        """
+        <style>
+        .stApp{
+            background:
+                radial-gradient(circle at 85% 0%,rgba(46,166,255,.13),transparent 28%),
+                radial-gradient(circle at 65% 8%,rgba(120,102,255,.10),transparent 22%),
+                linear-gradient(180deg,#06101d 0%,#07111f 55%,#081423 100%);
+            color:#f4f8ff;
+        }
+        .block-container{max-width:760px;padding-top:5rem;}
+        h1,h2,h3,p,label{color:#f4f8ff!important;}
+        [data-testid="stCaptionContainer"] p{color:#91a0b5!important;}
+        .stTextInput input{
+            background:#0b1829!important;color:#eef5ff!important;
+            border:1px solid rgba(255,255,255,.10)!important;
+            border-radius:11px!important;
+        }
+        .stButton button{min-height:44px;border-radius:10px;font-weight:700;}
+        div[data-baseweb="tab-list"]{border-bottom:1px solid rgba(255,255,255,.10);}
+        button[data-baseweb="tab"]{color:#91a0b5!important;font-weight:750!important;}
+        button[data-baseweb="tab"][aria-selected="true"]{color:#5fc3ff!important;}
+        #MainMenu,footer{visibility:hidden;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    brand_col, title_col = st.columns([0.14, 0.86], vertical_alignment="center")
+    with brand_col:
+        if ICON_PATH.exists():
+            st.image(str(ICON_PATH), width=54)
+        else:
+            st.markdown("### C")
+    with title_col:
+        st.markdown("# CareerCompass AI")
+        st.markdown("### Career Intelligence Platform")
+    st.caption("Entre para acessar seu perfil, histórico e inteligência de carreira.")
+
+    login_tab, signup_tab, recovery_tab = st.tabs(
+        ["Entrar", "Criar conta", "Recuperar senha"]
+    )
+
+    with login_tab:
+        with st.form("careercompass_login_form"):
+            email = st.text_input("E-mail", key="auth_login_email")
+            password = st.text_input("Senha", type="password", key="auth_login_password")
+            submitted = st.form_submit_button(
+                "Entrar no CareerCompass",
+                type="primary",
+                use_container_width=True,
+            )
+        if submitted:
+            try:
+                session = sign_in_with_password(email.strip(), password)
+                st.session_state[AUTH_SESSION_KEY] = session
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Não foi possível entrar: {exc}")
+
+    with signup_tab:
+        with st.form("careercompass_signup_form"):
+            full_name = st.text_input("Nome", key="auth_signup_name")
+            signup_email = st.text_input("E-mail", key="auth_signup_email")
+            signup_password = st.text_input(
+                "Senha", type="password", key="auth_signup_password"
+            )
+            signup_submitted = st.form_submit_button(
+                "Criar conta",
+                type="primary",
+                use_container_width=True,
+            )
+        if signup_submitted:
+            try:
+                result = sign_up(
+                    signup_email.strip(),
+                    signup_password,
+                    full_name=full_name.strip() or None,
+                )
+                result_session = getattr(result, "session", None)
+                if result_session is not None:
+                    st.session_state[AUTH_SESSION_KEY] = result_session
+                    st.rerun()
+                else:
+                    st.success(
+                        "Conta criada. Verifique seu e-mail para confirmar o cadastro "
+                        "e depois volte para entrar."
+                    )
+            except Exception as exc:
+                st.error(f"Não foi possível criar a conta: {exc}")
+
+    with recovery_tab:
+        with st.form("careercompass_recovery_form"):
+            recovery_email = st.text_input("E-mail", key="auth_recovery_email")
+            recovery_submitted = st.form_submit_button(
+                "Enviar recuperação",
+                use_container_width=True,
+            )
+        if recovery_submitted:
+            try:
+                send_password_recovery(recovery_email.strip())
+                st.success(
+                    "Se o e-mail estiver cadastrado, você receberá as instruções "
+                    "de recuperação."
+                )
+            except Exception as exc:
+                st.error(f"Não foi possível iniciar a recuperação: {exc}")
+
+
+auth_session = st.session_state.get(AUTH_SESSION_KEY)
+
+if auth_session is None:
+    render_auth_screen()
+    st.stop()
+
+auth_user = auth_session.user
+auth_user_id = str(auth_user.id)
+auth_email = str(auth_user.email or "").strip()
+auth_name = _auth_user_name(auth_user)
+
+
+# =========================================================
 # ESTADO
 # =========================================================
 
@@ -235,11 +386,14 @@ except Exception as exc:
 
 default_profile = load_default_profile()
 
-# Resolve the persistent local user before building the active profile so the
-# repository can restore the last CV used across Streamlit restarts.
+# Resolve a identidade autenticada para o usuário persistente do CareerCompass.
 if st.session_state.persistence_ready and st.session_state.career_user_id is None:
     try:
-        st.session_state.career_user_id = ensure_user(name="CareerCompass User")
+        st.session_state.career_user_id = ensure_user(
+            name=auth_name,
+            email=auth_email,
+            auth_user_id=auth_user_id,
+        )
     except Exception as exc:
         st.session_state.persistence_error = str(exc)
 
@@ -626,11 +780,9 @@ if st.session_state.persistence_ready:
     try:
         if st.session_state.career_user_id is None:
             st.session_state.career_user_id = ensure_user(
-                name=(
-                    structured_profile.candidate_name
-                    if structured_profile.candidate_name
-                    else "CareerCompass User"
-                )
+                name=auth_name,
+                email=auth_email,
+                auth_user_id=auth_user_id,
             )
 
         if (
@@ -700,6 +852,23 @@ render_html(
 </div>
 """
 )
+
+account_col, logout_col = st.columns([8.6, 1.4])
+with account_col:
+    st.caption(f"Sessão autenticada · {auth_email}")
+with logout_col:
+    if st.button(
+        "Sair",
+        key="careercompass_logout",
+        use_container_width=True,
+    ):
+        try:
+            sign_out(auth_session.access_token)
+        except Exception:
+            pass
+        _clear_app_session_after_logout()
+        st.rerun()
+
 
 nav1, nav2, nav3, nav4, nav5, nav6 = st.columns(6)
 
