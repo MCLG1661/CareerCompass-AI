@@ -36,6 +36,7 @@ from persistence_service import (
     get_career_dashboard_metrics,
     get_opportunity_history,
     get_profile_repository,
+    get_storage_backend,
     get_user_active_profile,
     initialize_persistence,
     persist_application,
@@ -868,6 +869,31 @@ with logout_col:
             pass
         _clear_app_session_after_logout()
         st.rerun()
+
+
+# Diagnóstico temporário do Sprint 4.3.
+# Exibe somente informações não secretas e apenas após autenticação.
+with st.expander("Diagnóstico temporário de identidade", expanded=True):
+    diagnostic_backend = (
+        get_storage_backend()
+        if st.session_state.persistence_ready
+        else "indisponível"
+    )
+    st.code(
+        "\n".join(
+            [
+                "Auth conectado: SIM",
+                f"CareerCompass user resolvido: {st.session_state.career_user_id or 'NÃO RESOLVIDO'}",
+                f"Backend: {diagnostic_backend}",
+            ]
+        ),
+        language="text",
+    )
+    if st.session_state.persistence_error:
+        st.warning(
+            "Persistência reportou erro: "
+            + str(st.session_state.persistence_error)
+        )
 
 
 nav1, nav2, nav3, nav4, nav5, nav6 = st.columns(6)
