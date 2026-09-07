@@ -447,6 +447,49 @@ def get_user_by_auth_id(
     return _first(rows)
 
 
+def get_or_create_user_for_auth(
+    auth_user_id: str,
+    name: str | None = None,
+    email: str | None = None,
+) -> str:
+    """
+    Resolve or create the CareerCompass application user for one Supabase Auth user.
+
+    This function never falls back to the legacy default user. A new authenticated
+    identity always receives its own public.users row linked by auth_user_id.
+    """
+    clean_auth_user_id = str(auth_user_id or "").strip()
+    if not clean_auth_user_id:
+        raise ValueError("auth_user_id é obrigatório para usuário autenticado.")
+
+    existing = get_user_by_auth_id(clean_auth_user_id)
+    if existing:
+        return str(existing["id"])
+
+    clean_name = (
+        name.strip()
+        if name and name.strip()
+        else DEFAULT_USER_NAME
+    )
+    clean_email = (
+        email.strip()
+        if email and email.strip()
+        else None
+    )
+
+    try:
+        return create_user(
+            name=clean_name,
+            email=clean_email,
+            auth_user_id=clean_auth_user_id,
+        )
+    except SupabaseRequestError:
+        existing = get_user_by_auth_id(clean_auth_user_id)
+        if existing:
+            return str(existing["id"])
+        raise
+
+
 def get_or_create_default_user(
     name: str | None = None,
     email: str | None = None,

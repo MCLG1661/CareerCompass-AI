@@ -56,6 +56,7 @@ if STORAGE_BACKEND == "supabase":
         get_career_profile,
         get_opportunity,
         get_or_create_default_user,
+        get_or_create_user_for_auth,
         get_user,
         get_user_by_auth_id,
         initialize_database,
@@ -130,23 +131,35 @@ def ensure_user(
     """
     Resolve the CareerCompass application user.
 
-    Resolution order:
-    1. Existing application user_id, when supplied.
-    2. Supabase Auth identity (auth_user_id), when using the Supabase backend.
-    3. Transitional default-user bootstrap, preserving SQLite compatibility.
+    Supabase rules:
+    - authenticated identity is the source of truth;
+    - an existing auth_user_id resolves the same public.users row;
+    - a new auth_user_id creates its own public.users row;
+    - authenticated users never fall back to the legacy default user.
 
-    The auth lookup is intentionally Supabase-only so local SQLite development
-    continues to work without requiring auth-specific database functions.
+    SQLite keeps the legacy single-user bootstrap for local compatibility.
     """
+    if STORAGE_BACKEND == "supabase":
+        if auth_user_id:
+            return get_or_create_user_for_auth(
+                auth_user_id=auth_user_id,
+                name=name,
+                email=email,
+            )
+
+        if user_id:
+            existing_user = get_user(user_id)
+            if existing_user:
+                return user_id
+
+        raise ValueError(
+            "auth_user_id é obrigatório para resolver usuário no backend Supabase."
+        )
+
     if user_id:
         existing_user = get_user(user_id)
         if existing_user:
             return user_id
-
-    if STORAGE_BACKEND == "supabase" and auth_user_id:
-        existing_user = get_user_by_auth_id(auth_user_id)
-        if existing_user:
-            return str(existing_user["id"])
 
     return get_or_create_default_user(
         name=name or DEFAULT_USER_NAME,
