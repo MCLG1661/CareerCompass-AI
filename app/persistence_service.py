@@ -53,6 +53,12 @@ if STORAGE_BACKEND == "supabase":
         clear_request_access_token,
         has_request_access_token,
         activate_career_profile,
+        activate_career_direction,
+        create_career_direction,
+        get_active_career_direction,
+        get_career_direction,
+        list_career_directions,
+        update_career_direction,
         get_active_profile,
         get_analysis,
         get_career_metrics,
@@ -114,6 +120,31 @@ if STORAGE_BACKEND != "supabase":
     def has_request_access_token() -> bool:
         """SQLite compatibility: there is no PostgREST user token."""
         return False
+
+
+    def create_career_direction(*args, **kwargs):
+        raise RuntimeError(
+            "Career Direction ainda requer backend Supabase nesta etapa."
+        )
+
+    def get_career_direction(direction_id: str):
+        return None
+
+    def get_active_career_direction(user_id: str):
+        return None
+
+    def list_career_directions(user_id: str, limit: int = 50):
+        return []
+
+    def update_career_direction(*args, **kwargs):
+        raise RuntimeError(
+            "Career Direction ainda requer backend Supabase nesta etapa."
+        )
+
+    def activate_career_direction(*args, **kwargs):
+        raise RuntimeError(
+            "Career Direction ainda requer backend Supabase nesta etapa."
+        )
 
 
 def bind_authenticated_session(access_token: str) -> None:
@@ -433,6 +464,84 @@ def empty_metrics() -> dict[str, Any]:
     }
 
 
+
+def persist_career_direction(
+    user_id: str,
+    *,
+    target_roles: Any = None,
+    target_seniority: str | None = None,
+    target_areas: Any = None,
+    target_industries: Any = None,
+    work_modes: Any = None,
+    target_locations: Any = None,
+    relocation_available: bool | None = None,
+    salary_min: float | int | None = None,
+    salary_currency: str = "BRL",
+    time_horizon_months: int | None = None,
+    priorities: Any = None,
+    constraints: Any = None,
+    career_goal: str | None = None,
+    make_active: bool = True,
+) -> str:
+    if not user_id:
+        raise ValueError("user_id é obrigatório.")
+    return create_career_direction(
+        user_id=user_id,
+        target_roles=target_roles,
+        target_seniority=target_seniority,
+        target_areas=target_areas,
+        target_industries=target_industries,
+        work_modes=work_modes,
+        target_locations=target_locations,
+        relocation_available=relocation_available,
+        salary_min=salary_min,
+        salary_currency=salary_currency,
+        time_horizon_months=time_horizon_months,
+        priorities=priorities,
+        constraints=constraints,
+        career_goal=career_goal,
+        make_active=make_active,
+    )
+
+
+def get_user_active_career_direction(
+    user_id: str,
+) -> dict[str, Any] | None:
+    return get_active_career_direction(user_id) if user_id else None
+
+
+def get_career_direction_history(
+    user_id: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    return list_career_directions(user_id, limit=limit) if user_id else []
+
+
+def update_user_career_direction(
+    user_id: str,
+    direction_id: str,
+    **changes: Any,
+) -> None:
+    if not user_id or not direction_id:
+        raise ValueError("user_id e direction_id são obrigatórios.")
+    update_career_direction(
+        user_id=user_id,
+        direction_id=direction_id,
+        **changes,
+    )
+
+
+def activate_user_career_direction(
+    user_id: str,
+    direction_id: str,
+) -> None:
+    if not user_id or not direction_id:
+        raise ValueError("user_id e direction_id são obrigatórios.")
+    activate_career_direction(
+        user_id=user_id,
+        direction_id=direction_id,
+    )
+
 def register_product_event(
     user_id: str,
     event_type: str,
@@ -516,6 +625,8 @@ def build_career_snapshot(user_id: str) -> dict[str, Any]:
         "user_id": user_id,
         "active_profile": get_user_active_profile(user_id),
         "profiles": get_profile_repository(user_id),
+        "active_career_direction": get_user_active_career_direction(user_id),
+        "career_directions": get_career_direction_history(user_id, limit=20),
         "metrics": get_career_dashboard_metrics(user_id),
         "recent_opportunities": get_opportunity_history(user_id, limit=20),
         "recent_analyses": get_analysis_history(user_id, limit=20),

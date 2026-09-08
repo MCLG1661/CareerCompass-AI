@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - optional outside Streamlit runtime
     st = None
 
 
-SCHEMA_VERSION = "4.5-token-aware"
+SCHEMA_VERSION = "5.1-career-direction"
 DEFAULT_USER_NAME = "CareerCompass User"
 
 
@@ -976,6 +976,275 @@ def rename_career_profile(
         },
     )
 
+
+
+# ============================================================
+# CAREER DIRECTIONS
+# ============================================================
+
+
+def _normalize_text_list(value: Any) -> list[str]:
+    """Normalize a string/list input into a clean, de-duplicated text list."""
+    if value is None:
+        return []
+    items = value if isinstance(value, (list, tuple, set)) else [value]
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _normalize_currency(value: Any) -> str:
+    currency = str(value or "BRL").strip().upper()
+    if len(currency) != 3 or not currency.isalpha():
+        raise ValueError("salary_currency deve usar um código de 3 letras, como BRL.")
+    return currency
+
+
+def _career_direction_payload(
+    *,
+    target_roles: Any = None,
+    target_seniority: str | None = None,
+    target_areas: Any = None,
+    target_industries: Any = None,
+    work_modes: Any = None,
+    target_locations: Any = None,
+    relocation_available: bool | None = None,
+    salary_min: float | int | None = None,
+    salary_currency: str = "BRL",
+    time_horizon_months: int | None = None,
+    priorities: Any = None,
+    constraints: Any = None,
+    career_goal: str | None = None,
+) -> dict[str, Any]:
+    if salary_min is not None and float(salary_min) < 0:
+        raise ValueError("salary_min não pode ser negativo.")
+    if time_horizon_months is not None and int(time_horizon_months) <= 0:
+        raise ValueError("time_horizon_months deve ser maior que zero.")
+
+    return {
+        "target_roles": _normalize_text_list(target_roles),
+        "target_seniority": str(target_seniority).strip() if target_seniority else None,
+        "target_areas": _normalize_text_list(target_areas),
+        "target_industries": _normalize_text_list(target_industries),
+        "work_modes": _normalize_text_list(work_modes),
+        "target_locations": _normalize_text_list(target_locations),
+        "relocation_available": relocation_available,
+        "salary_min": float(salary_min) if salary_min is not None else None,
+        "salary_currency": _normalize_currency(salary_currency),
+        "time_horizon_months": int(time_horizon_months) if time_horizon_months is not None else None,
+        "priorities": serialize_json(priorities or {}),
+        "constraints": serialize_json(constraints or {}),
+        "career_goal": str(career_goal).strip() if career_goal else None,
+        "updated_at": utc_now(),
+    }
+
+
+def create_career_direction(
+    user_id: str,
+    *,
+    target_roles: Any = None,
+    target_seniority: str | None = None,
+    target_areas: Any = None,
+    target_industries: Any = None,
+    work_modes: Any = None,
+    target_locations: Any = None,
+    relocation_available: bool | None = None,
+    salary_min: float | int | None = None,
+    salary_currency: str = "BRL",
+    time_horizon_months: int | None = None,
+    priorities: Any = None,
+    constraints: Any = None,
+    career_goal: str | None = None,
+    make_active: bool = True,
+) -> str:
+    if not str(user_id or "").strip():
+        raise ValueError("user_id é obrigatório.")
+
+    timestamp = utc_now()
+
+    if make_active:
+        _request(
+            "career_directions",
+            method="PATCH",
+            params={
+                "user_id": f"eq.{user_id}",
+                "is_active": "eq.true",
+            },
+            body={
+                "is_active": False,
+                "updated_at": timestamp,
+            },
+        )
+
+    payload = {
+        "user_id": user_id,
+        **_career_direction_payload(
+            target_roles=target_roles,
+            target_seniority=target_seniority,
+            target_areas=target_areas,
+            target_industries=target_industries,
+            work_modes=work_modes,
+            target_locations=target_locations,
+            relocation_available=relocation_available,
+            salary_min=salary_min,
+            salary_currency=salary_currency,
+            time_horizon_months=time_horizon_months,
+            priorities=priorities,
+            constraints=constraints,
+            career_goal=career_goal,
+        ),
+        "is_active": bool(make_active),
+    }
+
+    rows = _request(
+        "career_directions",
+        method="POST",
+        body=payload,
+    )
+    row = _first(rows)
+    if not row:
+        raise SupabaseRequestError("Falha ao criar Career Direction.")
+
+    return str(row["id"])
+
+
+def get_career_direction(
+    direction_id: str,
+) -> dict[str, Any] | None:
+    rows = _request(
+        "career_directions",
+        params={
+            "select": "*",
+            "id": f"eq.{direction_id}",
+            "limit": 1,
+        },
+    )
+    return _first(rows)
+
+
+def get_active_career_direction(
+    user_id: str,
+) -> dict[str, Any] | None:
+    rows = _request(
+        "career_directions",
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "is_active": "eq.true",
+            "order": "updated_at.desc",
+            "limit": 1,
+        },
+    )
+    return _first(rows)
+
+
+def list_career_directions(
+    user_id: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    rows = _request(
+        "career_directions",
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "order": "is_active.desc,updated_at.desc,created_at.desc",
+            "limit": max(1, int(limit)),
+        },
+    )
+    return [row for row in (rows or []) if isinstance(row, dict)]
+
+
+def update_career_direction(
+    user_id: str,
+    direction_id: str,
+    *,
+    target_roles: Any = None,
+    target_seniority: str | None = None,
+    target_areas: Any = None,
+    target_industries: Any = None,
+    work_modes: Any = None,
+    target_locations: Any = None,
+    relocation_available: bool | None = None,
+    salary_min: float | int | None = None,
+    salary_currency: str = "BRL",
+    time_horizon_months: int | None = None,
+    priorities: Any = None,
+    constraints: Any = None,
+    career_goal: str | None = None,
+) -> None:
+    rows = _request(
+        "career_directions",
+        method="PATCH",
+        params={
+            "id": f"eq.{direction_id}",
+            "user_id": f"eq.{user_id}",
+        },
+        body=_career_direction_payload(
+            target_roles=target_roles,
+            target_seniority=target_seniority,
+            target_areas=target_areas,
+            target_industries=target_industries,
+            work_modes=work_modes,
+            target_locations=target_locations,
+            relocation_available=relocation_available,
+            salary_min=salary_min,
+            salary_currency=salary_currency,
+            time_horizon_months=time_horizon_months,
+            priorities=priorities,
+            constraints=constraints,
+            career_goal=career_goal,
+        ),
+    )
+    if not _first(rows):
+        raise ValueError(f"Career Direction não encontrada: {direction_id}")
+
+
+def activate_career_direction(
+    user_id: str,
+    direction_id: str,
+) -> None:
+    direction = get_career_direction(direction_id)
+    if not direction or str(direction.get("user_id")) != str(user_id):
+        raise ValueError(f"Career Direction não encontrada: {direction_id}")
+
+    timestamp = utc_now()
+
+    _request(
+        "career_directions",
+        method="PATCH",
+        params={
+            "user_id": f"eq.{user_id}",
+            "is_active": "eq.true",
+        },
+        body={
+            "is_active": False,
+            "updated_at": timestamp,
+        },
+    )
+
+    rows = _request(
+        "career_directions",
+        method="PATCH",
+        params={
+            "id": f"eq.{direction_id}",
+            "user_id": f"eq.{user_id}",
+        },
+        body={
+            "is_active": True,
+            "updated_at": timestamp,
+        },
+    )
+    if not _first(rows):
+        raise ValueError(f"Career Direction não encontrada: {direction_id}")
 
 # ============================================================
 # OPPORTUNITIES
