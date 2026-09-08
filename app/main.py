@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import time
 
 
 import streamlit as st
@@ -21,14 +22,18 @@ from recommendation_engine import build_recommendations
 from report_engine import build_career_report, report_to_markdown
 from resume_parser import ResumeParserError, extract_resume_text
 from scout_engine import discover_roles
+from session_bridge import mount_browser_session_bridge
 from auth_engine import (
+    refresh_session,
     send_password_recovery,
     sign_in_with_password,
     sign_out,
     sign_up,
 )
 from persistence_service import (
+    bind_authenticated_session,
     build_career_snapshot,
+    clear_authenticated_session,
     change_application_status,
     activate_profile,
     ensure_user,
@@ -142,6 +147,7 @@ st.set_page_config(
 # =========================================================
 
 AUTH_SESSION_KEY = "careercompass_auth_session"
+BROWSER_CLEAR_PENDING_KEY = "careercompass_browser_clear_pending"
 
 
 def _auth_user_name(auth_user) -> str:
@@ -156,8 +162,84 @@ def _auth_user_name(auth_user) -> str:
 
 
 def _clear_app_session_after_logout() -> None:
+    clear_authenticated_session()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
+    # The next rerun clears the browser-side refresh token before the login
+    # screen is rendered. Keeping this flag after the state reset prevents a
+    # stale browser session from silently restoring the user after logout.
+    st.session_state[BROWSER_CLEAR_PENDING_KEY] = True
+
+
+def _ensure_fresh_auth_session(auth_session):
+    """Refresh the Supabase session shortly before JWT expiration."""
+    expires_at = getattr(auth_session, "expires_at", None)
+    refresh_token = str(getattr(auth_session, "refresh_token", "") or "").strip()
+
+    should_refresh = bool(
+        expires_at
+        and refresh_token
+        and int(expires_at) <= int(time.time()) + 300
+    )
+
+    if should_refresh:
+        auth_session = refresh_session(refresh_token)
+        st.session_state[AUTH_SESSION_KEY] = auth_session
+
+    bind_authenticated_session(auth_session.access_token)
+    return auth_session
+
+
+def _restore_auth_session_from_browser():
+    """Restore a Supabase session after a full browser reload.
+
+    Only the refresh token is persisted by the browser bridge. The token is
+    immediately exchanged with Supabase Auth for a fresh access/refresh pair;
+    the returned user identity is therefore server-confirmed before the app
+    binds the JWT to PostgREST/RLS.
+    """
+    result = mount_browser_session_bridge(
+        action="read",
+        key="careercompass_session_restore",
+    )
+
+    ready = bool(getattr(result, "ready", False))
+    stored_refresh_token = str(getattr(result, "refresh_token", "") or "").strip()
+
+    if not ready:
+        st.caption("Restaurando sessão segura…")
+        st.stop()
+
+    if not stored_refresh_token:
+        return None
+
+    try:
+        restored = refresh_session(stored_refresh_token)
+    except Exception:
+        # Invalid/revoked/rotated browser credentials must fail closed.
+        st.session_state[BROWSER_CLEAR_PENDING_KEY] = True
+        st.rerun()
+
+    st.session_state[AUTH_SESSION_KEY] = restored
+    return restored
+
+
+def _clear_browser_session_if_pending() -> None:
+    if not st.session_state.get(BROWSER_CLEAR_PENDING_KEY):
+        return
+
+    result = mount_browser_session_bridge(
+        action="clear",
+        key="careercompass_session_clear",
+    )
+    if not bool(getattr(result, "ready", False)):
+        st.caption("Encerrando sessão…")
+        st.stop()
+
+    st.session_state.pop(BROWSER_CLEAR_PENDING_KEY, None)
+    # Remove the component state so a later logout always performs a fresh
+    # browser-side clear operation.
+    st.session_state.pop("careercompass_session_clear", None)
 
 
 def render_auth_screen() -> None:
@@ -270,11 +352,32 @@ def render_auth_screen() -> None:
                 st.error(f"Não foi possível iniciar a recuperação: {exc}")
 
 
+_clear_browser_session_if_pending()
+
 auth_session = st.session_state.get(AUTH_SESSION_KEY)
+
+if auth_session is None:
+    auth_session = _restore_auth_session_from_browser()
 
 if auth_session is None:
     render_auth_screen()
     st.stop()
+
+try:
+    auth_session = _ensure_fresh_auth_session(auth_session)
+except Exception:
+    clear_authenticated_session()
+    st.session_state.pop(AUTH_SESSION_KEY, None)
+    st.session_state[BROWSER_CLEAR_PENDING_KEY] = True
+    st.rerun()
+
+# Persist only the current refresh token. This also replaces a rotated token
+# after refresh/restore, while the access JWT remains server-side in Python.
+mount_browser_session_bridge(
+    action="save",
+    refresh_token=auth_session.refresh_token,
+    key="careercompass_session_save",
+)
 
 auth_user = auth_session.user
 auth_user_id = str(auth_user.id)
