@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from contextvars import ContextVar
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -36,8 +37,33 @@ except Exception:  # pragma: no cover - optional outside Streamlit runtime
     st = None
 
 
-SCHEMA_VERSION = "3.0-supabase"
+SCHEMA_VERSION = "4.5-token-aware"
 DEFAULT_USER_NAME = "CareerCompass User"
+
+
+# Request-scoped authenticated JWT used by PostgREST/RLS.
+# When set, normal CRUD uses the publishable key as apikey and the user's
+# access token as Authorization. Service-role fallback remains available only
+# for trusted bootstrap/administrative flows that do not set a user token.
+_REQUEST_ACCESS_TOKEN: ContextVar[str | None] = ContextVar(
+    "careercompass_supabase_access_token", default=None
+)
+
+
+def set_request_access_token(access_token: str | None) -> None:
+    """Bind a Supabase Auth access token to the current execution context."""
+    token = str(access_token or "").strip() or None
+    _REQUEST_ACCESS_TOKEN.set(token)
+
+
+def clear_request_access_token() -> None:
+    """Remove any authenticated token from the current execution context."""
+    _REQUEST_ACCESS_TOKEN.set(None)
+
+
+def has_request_access_token() -> bool:
+    """Return True when PostgREST requests are running as an authenticated user."""
+    return bool(_REQUEST_ACCESS_TOKEN.get())
 
 
 # ============================================================
@@ -102,6 +128,15 @@ def get_supabase_config() -> tuple[str, str]:
         )
 
     return url.rstrip("/"), secret_key
+
+
+def get_supabase_publishable_key() -> str:
+    key = _read_secret("SUPABASE_PUBLISHABLE_KEY")
+    if not key:
+        raise SupabaseConfigurationError(
+            "Configuração Supabase ausente: SUPABASE_PUBLISHABLE_KEY"
+        )
+    return key
 
 
 # ============================================================
@@ -201,10 +236,21 @@ def _request(
     return_representation: bool = True,
 ) -> Any:
     _, secret_key = get_supabase_config()
+    access_token = _REQUEST_ACCESS_TOKEN.get()
+
+    if access_token:
+        api_key = get_supabase_publishable_key()
+        authorization = access_token
+    else:
+        # Trusted server/bootstrap compatibility. Normal authenticated product
+        # flows must bind a user access token so PostgreSQL RLS evaluates
+        # auth.uid() for that user instead of bypassing policies as service_role.
+        api_key = secret_key
+        authorization = secret_key
 
     headers = {
-        "apikey": secret_key,
-        "Authorization": f"Bearer {secret_key}",
+        "apikey": api_key,
+        "Authorization": f"Bearer {authorization}",
         "Accept": "application/json",
         "Content-Type": "application/json",
     }

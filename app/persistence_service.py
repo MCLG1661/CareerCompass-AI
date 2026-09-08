@@ -49,6 +49,9 @@ if STORAGE_BACKEND == "supabase":
     from supabase_database_engine import (
         create_application,
         database_health_check,
+        set_request_access_token,
+        clear_request_access_token,
+        has_request_access_token,
         activate_career_profile,
         get_active_profile,
         get_analysis,
@@ -97,6 +100,40 @@ else:
         save_opportunity,
         update_application_status,
     )
+
+
+if STORAGE_BACKEND != "supabase":
+    def set_request_access_token(access_token: str | None) -> None:
+        """SQLite compatibility: authenticated cloud token is not used locally."""
+        return None
+
+    def clear_request_access_token() -> None:
+        """SQLite compatibility: no cloud token is bound."""
+        return None
+
+    def has_request_access_token() -> bool:
+        """SQLite compatibility: there is no PostgREST user token."""
+        return False
+
+
+def bind_authenticated_session(access_token: str) -> None:
+    """Bind the signed-in user's JWT so Supabase CRUD is evaluated by RLS."""
+    if STORAGE_BACKEND != "supabase":
+        return
+    token = str(access_token or "").strip()
+    if not token:
+        raise ValueError("access_token é obrigatório no backend Supabase.")
+    set_request_access_token(token)
+
+
+def clear_authenticated_session() -> None:
+    """Clear the JWT used by the persistence layer."""
+    clear_request_access_token()
+
+
+def persistence_uses_authenticated_session() -> bool:
+    """Report whether cloud persistence is currently running with a user JWT."""
+    return STORAGE_BACKEND == "supabase" and has_request_access_token()
 
 
 def get_storage_backend() -> str:
