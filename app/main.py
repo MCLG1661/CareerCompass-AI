@@ -138,6 +138,41 @@ def safe_filename(
     return cleaned or "candidato"
 
 
+def refresh_career_direction_state(force: bool = False) -> None:
+    """
+    Mantém a Career Direction ativa e o histórico como contexto estratégico
+    central da sessão. Os módulos futuros podem consumir esse estado sem
+    duplicar consultas ou lógica de resolução.
+    """
+    if not st.session_state.get("persistence_ready"):
+        return
+
+    user_id = st.session_state.get("career_user_id")
+    if not user_id:
+        return
+
+    if (
+        st.session_state.get("career_direction_initialized")
+        and not force
+    ):
+        return
+
+    try:
+        active_direction = get_user_active_career_direction(user_id)
+        direction_history = get_career_direction_history(
+            user_id,
+            limit=20,
+        )
+
+        st.session_state.career_direction_active = active_direction
+        st.session_state.career_direction_history = direction_history
+        st.session_state.career_direction_initialized = True
+
+    except Exception as exc:
+        st.session_state.career_direction_initialized = False
+        st.session_state.persistence_error = str(exc)
+
+
 st.set_page_config(
     page_title="CareerCompass AI",
     page_icon=PAGE_ICON,
@@ -483,6 +518,15 @@ if "persistence_ready" not in st.session_state:
 if "persistence_error" not in st.session_state:
     st.session_state.persistence_error = None
 
+if "career_direction_initialized" not in st.session_state:
+    st.session_state.career_direction_initialized = False
+
+if "career_direction_active" not in st.session_state:
+    st.session_state.career_direction_active = None
+
+if "career_direction_history" not in st.session_state:
+    st.session_state.career_direction_history = []
+
 try:
     initialize_persistence()
     st.session_state.persistence_ready = True
@@ -504,6 +548,13 @@ if st.session_state.persistence_ready and st.session_state.career_user_id is Non
         )
     except Exception as exc:
         st.session_state.persistence_error = str(exc)
+
+if (
+    st.session_state.persistence_ready
+    and st.session_state.career_user_id
+    and not st.session_state.career_direction_initialized
+):
+    refresh_career_direction_state()
 
 if (
     st.session_state.persistence_ready
@@ -2029,23 +2080,15 @@ elif st.session_state.selected_flow == "direction":
         unsafe_allow_html=True,
     )
 
-    active_direction = None
-    direction_history = []
-
-    if st.session_state.persistence_ready and st.session_state.career_user_id:
-        try:
-            active_direction = get_user_active_career_direction(
-                st.session_state.career_user_id
-            )
-            direction_history = get_career_direction_history(
-                st.session_state.career_user_id,
-                limit=20,
-            )
-        except Exception as exc:
-            st.session_state.persistence_error = str(exc)
+    active_direction = st.session_state.career_direction_active
+    direction_history = st.session_state.career_direction_history
 
     if active_direction:
         st.success("Career Direction ativa e vinculada ao seu perfil.")
+        st.caption(
+            "Contexto estratégico carregado na sessão · "
+            "disponível para os módulos de inteligência."
+        )
 
         d1, d2, d3, d4 = st.columns(4)
         d1.metric(
@@ -2339,6 +2382,7 @@ elif st.session_state.selected_flow == "direction":
                     career_goal=goal.strip(),
                     make_active=True,
                 )
+                refresh_career_direction_state(force=True)
                 st.success("Career Direction salva e ativada.")
                 st.rerun()
             except Exception as exc:
@@ -2394,6 +2438,7 @@ elif st.session_state.selected_flow == "direction":
                                 st.session_state.career_user_id,
                                 str(item.get("id")),
                             )
+                            refresh_career_direction_state(force=True)
                             st.success("Career Direction ativada.")
                             st.rerun()
                         except Exception as exc:
