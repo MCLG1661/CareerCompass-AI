@@ -40,14 +40,18 @@ from persistence_service import (
     get_analysis_history,
     get_application_pipeline,
     get_career_dashboard_metrics,
+    get_career_direction_history,
     get_opportunity_history,
     get_profile_repository,
+    get_user_active_career_direction,
     get_user_active_profile,
     initialize_persistence,
     persist_application,
     persist_career_analysis,
+    persist_career_direction,
     persist_opportunity,
     persist_profile,
+    activate_user_career_direction,
 )
 
 
@@ -974,7 +978,7 @@ with logout_col:
         st.rerun()
 
 
-nav1, nav2, nav3, nav4, nav5, nav6 = st.columns(6)
+nav1, nav2, nav3, nav4, nav5, nav6, nav7 = st.columns(7)
 
 with nav1:
     if st.button("Overview", key="nav_home", use_container_width=True):
@@ -982,26 +986,31 @@ with nav1:
         st.rerun()
 
 with nav2:
+    if st.button("Direção", key="nav_direction", use_container_width=True):
+        st.session_state.selected_flow = "direction"
+        st.rerun()
+
+with nav3:
     if st.button("Oportunidades", key="nav_scout", use_container_width=True):
         st.session_state.selected_flow = "scout"
         st.rerun()
 
-with nav3:
+with nav4:
     if st.button("Career Fit", key="nav_curator", use_container_width=True):
         st.session_state.selected_flow = "curator"
         st.rerun()
 
-with nav4:
+with nav5:
     if st.button("Candidaturas", key="nav_applications", use_container_width=True):
         st.session_state.selected_flow = "applications"
         st.rerun()
 
-with nav5:
+with nav6:
     if st.button("Coach", key="nav_coach", use_container_width=True):
         st.session_state.selected_flow = "coach"
         st.rerun()
 
-with nav6:
+with nav7:
     if st.button("Relatórios", key="nav_report", use_container_width=True):
         st.session_state.selected_flow = "report"
         st.rerun()
@@ -1999,6 +2008,399 @@ if st.session_state.selected_flow == "home":
                 ):
                     st.session_state.selected_flow = "report"
                     st.rerun()
+
+# =========================================================
+# SPRINT 5.2A — CAREER DIRECTION WORKSPACE
+# =========================================================
+
+elif st.session_state.selected_flow == "direction":
+
+    st.markdown(
+        """
+        <div class="cc-module-header">
+            <div class="cc-agent-label">Career Strategy</div>
+            <h2>Career Direction</h2>
+            <p>
+                Defina o destino profissional que o CareerCompass deve usar como
+                referência para oportunidades, decisões e evolução de carreira.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    active_direction = None
+    direction_history = []
+
+    if st.session_state.persistence_ready and st.session_state.career_user_id:
+        try:
+            active_direction = get_user_active_career_direction(
+                st.session_state.career_user_id
+            )
+            direction_history = get_career_direction_history(
+                st.session_state.career_user_id,
+                limit=20,
+            )
+        except Exception as exc:
+            st.session_state.persistence_error = str(exc)
+
+    if active_direction:
+        st.success("Career Direction ativa e vinculada ao seu perfil.")
+
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric(
+            "Cargos-alvo",
+            len(active_direction.get("target_roles") or []),
+        )
+        d2.metric(
+            "Horizonte",
+            (
+                f"{active_direction.get('time_horizon_months')} meses"
+                if active_direction.get("time_horizon_months")
+                else "—"
+            ),
+        )
+        d3.metric(
+            "Remuneração mínima",
+            (
+                f"{active_direction.get('salary_currency') or 'BRL'} "
+                f"{active_direction.get('salary_min'):,.0f}"
+                if active_direction.get("salary_min") is not None
+                else "—"
+            ),
+        )
+        d4.metric(
+            "Histórico",
+            len(direction_history),
+        )
+
+        with st.container(border=True):
+            st.markdown("### Direção profissional atual")
+            st.write(
+                "**Objetivo:** "
+                + str(active_direction.get("career_goal") or "Não definido")
+            )
+            st.write(
+                "**Cargos-alvo:** "
+                + (
+                    ", ".join(active_direction.get("target_roles") or [])
+                    or "Não definidos"
+                )
+            )
+            st.write(
+                "**Senioridade:** "
+                + str(active_direction.get("target_seniority") or "Não definida")
+            )
+            st.write(
+                "**Áreas:** "
+                + (
+                    ", ".join(active_direction.get("target_areas") or [])
+                    or "Não definidas"
+                )
+            )
+            st.write(
+                "**Setores:** "
+                + (
+                    ", ".join(active_direction.get("target_industries") or [])
+                    or "Não definidos"
+                )
+            )
+            st.write(
+                "**Modelo de trabalho:** "
+                + (
+                    ", ".join(active_direction.get("work_modes") or [])
+                    or "Não definido"
+                )
+            )
+            st.write(
+                "**Localizações:** "
+                + (
+                    ", ".join(active_direction.get("target_locations") or [])
+                    or "Não definidas"
+                )
+            )
+    else:
+        st.info(
+            "Você ainda não possui uma Career Direction ativa. "
+            "Defina abaixo o próximo destino da sua trajetória."
+        )
+
+    st.markdown("### Definir nova direção")
+    st.caption(
+        "Ao salvar, uma nova versão é criada e passa a ser a direção ativa. "
+        "O histórico anterior é preservado."
+    )
+
+    current_roles = active_direction.get("target_roles") or [] if active_direction else []
+    current_areas = active_direction.get("target_areas") or [] if active_direction else []
+    current_industries = active_direction.get("target_industries") or [] if active_direction else []
+    current_modes = active_direction.get("work_modes") or [] if active_direction else []
+    current_locations = active_direction.get("target_locations") or [] if active_direction else []
+    current_priorities = active_direction.get("priorities") or {} if active_direction else {}
+    current_constraints = active_direction.get("constraints") or {} if active_direction else {}
+
+    with st.form("career_direction_form"):
+        goal = st.text_area(
+            "Objetivo de carreira",
+            value=(
+                str(active_direction.get("career_goal") or "")
+                if active_direction
+                else ""
+            ),
+            placeholder=(
+                "Ex.: Consolidar uma posição de liderança na interseção entre "
+                "gestão, dados, IA e transformação digital."
+            ),
+            height=110,
+        )
+
+        form_col1, form_col2 = st.columns(2)
+
+        with form_col1:
+            roles_text = st.text_area(
+                "Cargos-alvo",
+                value=", ".join(current_roles),
+                placeholder="Ex.: Head de Data & AI, Gerente de Transformação Digital",
+                help="Separe múltiplos cargos por vírgula.",
+            )
+            seniority = st.text_input(
+                "Senioridade-alvo",
+                value=(
+                    str(active_direction.get("target_seniority") or "")
+                    if active_direction
+                    else ""
+                ),
+                placeholder="Ex.: Executiva / Liderança",
+            )
+            areas_text = st.text_area(
+                "Áreas de atuação",
+                value=", ".join(current_areas),
+                placeholder="Ex.: Dados, Inteligência Artificial, Transformação Digital",
+                help="Separe múltiplas áreas por vírgula.",
+            )
+            industries_text = st.text_area(
+                "Setores de interesse",
+                value=", ".join(current_industries),
+                placeholder="Ex.: Tecnologia, Serviços, Consultoria",
+                help="Separe múltiplos setores por vírgula.",
+            )
+
+        with form_col2:
+            modes_text = st.text_input(
+                "Modelos de trabalho",
+                value=", ".join(current_modes),
+                placeholder="Ex.: Híbrido, Remoto",
+            )
+            locations_text = st.text_area(
+                "Localizações-alvo",
+                value=", ".join(current_locations),
+                placeholder="Ex.: Rio de Janeiro, São Paulo, Portugal",
+                help="Separe múltiplas localizações por vírgula.",
+            )
+            relocation = st.checkbox(
+                "Disponível para relocação",
+                value=bool(
+                    active_direction.get("relocation_available")
+                    if active_direction
+                    else False
+                ),
+            )
+
+            salary_col, currency_col = st.columns([1.35, .65])
+            with salary_col:
+                salary_min = st.number_input(
+                    "Remuneração mínima",
+                    min_value=0.0,
+                    value=float(
+                        active_direction.get("salary_min") or 0
+                        if active_direction
+                        else 0
+                    ),
+                    step=1000.0,
+                )
+            with currency_col:
+                currencies = ["BRL", "EUR", "USD"]
+                active_currency = (
+                    str(active_direction.get("salary_currency") or "BRL")
+                    if active_direction
+                    else "BRL"
+                )
+                currency = st.selectbox(
+                    "Moeda",
+                    currencies,
+                    index=(
+                        currencies.index(active_currency)
+                        if active_currency in currencies
+                        else 0
+                    ),
+                )
+
+            horizon = st.number_input(
+                "Horizonte de carreira (meses)",
+                min_value=3,
+                max_value=120,
+                value=int(
+                    active_direction.get("time_horizon_months") or 24
+                    if active_direction
+                    else 24
+                ),
+                step=3,
+            )
+
+        st.markdown("#### Prioridades estratégicas")
+        p1, p2, p3, p4 = st.columns(4)
+        with p1:
+            priority_growth = st.slider(
+                "Crescimento",
+                1,
+                5,
+                int(current_priorities.get("growth", 4)),
+            )
+        with p2:
+            priority_leadership = st.slider(
+                "Liderança",
+                1,
+                5,
+                int(current_priorities.get("leadership", 4)),
+            )
+        with p3:
+            priority_learning = st.slider(
+                "Aprendizado",
+                1,
+                5,
+                int(current_priorities.get("learning", 4)),
+            )
+        with p4:
+            priority_compensation = st.slider(
+                "Remuneração",
+                1,
+                5,
+                int(current_priorities.get("compensation", 4)),
+            )
+
+        avoid_below = st.checkbox(
+            "Evitar oportunidades abaixo da senioridade-alvo",
+            value=bool(
+                current_constraints.get("avoid_roles_below_seniority", False)
+            ),
+        )
+
+        save_direction = st.form_submit_button(
+            "Salvar Career Direction",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if save_direction:
+        def _direction_items(raw_value: str) -> list[str]:
+            return [
+                item.strip()
+                for item in str(raw_value or "").split(",")
+                if item.strip()
+            ]
+
+        target_roles = _direction_items(roles_text)
+        target_areas = _direction_items(areas_text)
+        target_industries = _direction_items(industries_text)
+        work_modes = _direction_items(modes_text)
+        target_locations = _direction_items(locations_text)
+
+        if not goal.strip():
+            st.warning("Defina o objetivo de carreira.")
+        elif not target_roles:
+            st.warning("Informe pelo menos um cargo-alvo.")
+        elif not st.session_state.persistence_ready:
+            st.error("A persistência não está disponível.")
+        elif not st.session_state.career_user_id:
+            st.error("Não foi possível resolver o usuário CareerCompass.")
+        else:
+            try:
+                persist_career_direction(
+                    st.session_state.career_user_id,
+                    target_roles=target_roles,
+                    target_seniority=seniority.strip() or None,
+                    target_areas=target_areas,
+                    target_industries=target_industries,
+                    work_modes=work_modes,
+                    target_locations=target_locations,
+                    relocation_available=relocation,
+                    salary_min=(salary_min if salary_min > 0 else None),
+                    salary_currency=currency,
+                    time_horizon_months=int(horizon),
+                    priorities={
+                        "growth": priority_growth,
+                        "leadership": priority_leadership,
+                        "learning": priority_learning,
+                        "compensation": priority_compensation,
+                    },
+                    constraints={
+                        "avoid_roles_below_seniority": avoid_below,
+                    },
+                    career_goal=goal.strip(),
+                    make_active=True,
+                )
+                st.success("Career Direction salva e ativada.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Não foi possível salvar a Career Direction: {exc}")
+
+    if direction_history:
+        st.markdown("### Histórico de direções")
+        st.caption(
+            "Versões anteriores permanecem disponíveis para rastrear mudanças "
+            "de estratégia e podem voltar a ser ativadas."
+        )
+
+        for index, item in enumerate(direction_history, start=1):
+            roles = ", ".join(item.get("target_roles") or []) or "Sem cargos-alvo"
+            created = str(item.get("created_at") or "")[:10]
+            active_label = " · ATIVA" if item.get("is_active") else ""
+            title = f"{index}. {roles}{active_label}"
+
+            with st.expander(title, expanded=False):
+                st.write(
+                    "**Objetivo:** "
+                    + str(item.get("career_goal") or "Não definido")
+                )
+                st.write(
+                    "**Senioridade:** "
+                    + str(item.get("target_seniority") or "Não definida")
+                )
+                st.write(
+                    "**Áreas:** "
+                    + (
+                        ", ".join(item.get("target_areas") or [])
+                        or "Não definidas"
+                    )
+                )
+                st.write(
+                    "**Localizações:** "
+                    + (
+                        ", ".join(item.get("target_locations") or [])
+                        or "Não definidas"
+                    )
+                )
+                if created:
+                    st.caption(f"Criada em {created}")
+
+                if not item.get("is_active"):
+                    if st.button(
+                        "Ativar esta direção",
+                        key=f"activate_direction_{item.get('id')}",
+                        use_container_width=True,
+                    ):
+                        try:
+                            activate_user_career_direction(
+                                st.session_state.career_user_id,
+                                str(item.get("id")),
+                            )
+                            st.success("Career Direction ativada.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(
+                                f"Não foi possível ativar esta direção: {exc}"
+                            )
+
 
 # =========================================================
 # SCOUT
