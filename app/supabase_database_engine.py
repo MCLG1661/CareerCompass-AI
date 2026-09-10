@@ -1417,6 +1417,7 @@ def save_analysis(
     user_id: str,
     profile_id: str,
     opportunity_id: str,
+    career_direction_id: str | None = None,
     career_fit_score: float | None = None,
     ats_score: float | None = None,
     tailoring_score: float | None = None,
@@ -1463,6 +1464,7 @@ def save_analysis(
         "user_id": user_id,
         "profile_id": profile_id,
         "opportunity_id": opportunity_id,
+        "career_direction_id": career_direction_id,
         "career_fit_score": _normalize_score(
             career_fit_score
         ),
@@ -1527,9 +1529,16 @@ def get_analysis(
             "limit": 1,
         },
     )
-    return _legacy_analysis(
+
+    analysis = _legacy_analysis(
         _first(rows)
     )
+    if analysis is None:
+        return None
+
+    return _attach_career_direction_fields(
+        [analysis]
+    )[0]
 
 
 def _attach_opportunity_fields(
@@ -1570,6 +1579,42 @@ def _attach_opportunity_fields(
     return result
 
 
+def _attach_career_direction_fields(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    direction_ids = {
+        str(row.get("career_direction_id"))
+        for row in rows
+        if row.get("career_direction_id")
+    }
+
+    direction_map: dict[str, dict[str, Any]] = {}
+
+    for direction_id in direction_ids:
+        direction = get_career_direction(
+            direction_id
+        )
+        if direction:
+            direction_map[
+                direction_id
+            ] = direction
+
+    result = []
+    for row in rows:
+        item = dict(row)
+        direction_id = item.get(
+            "career_direction_id"
+        )
+        item["career_direction"] = (
+            direction_map.get(str(direction_id))
+            if direction_id
+            else None
+        )
+        result.append(item)
+
+    return result
+
+
 def list_analyses(
     user_id: str,
     limit: int = 50,
@@ -1594,8 +1639,11 @@ def list_analyses(
         )
     ]
 
-    return _attach_opportunity_fields(
+    enriched = _attach_opportunity_fields(
         normalized
+    )
+    return _attach_career_direction_fields(
+        enriched
     )
 
 

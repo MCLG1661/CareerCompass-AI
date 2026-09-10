@@ -42,6 +42,25 @@ class AnalyticsPoint:
     career_fit_score: float
     ats_score: float
     tailoring_score: float
+    strategic_fit_score: float = 0.0
+    decision_score: float = 0.0
+    career_direction_id: str | None = None
+    decision_classification: str | None = None
+    direction_classification: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class StrategicDirectionSummary:
+    career_direction_id: str
+    analyses: int
+    avg_strategic_fit: float
+    latest_strategic_fit: float
+    best_strategic_fit: float
+    strategic_fit_trend: float
+    strategic_trend_label: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -91,6 +110,21 @@ class CareerAnalyticsReport:
     executive_insights: list[str] = field(default_factory=list)
 
     summary: str = ""
+
+    avg_strategic_fit: float = 0.0
+    latest_strategic_fit: float = 0.0
+    best_strategic_fit: float = 0.0
+    strategic_fit_trend: float = 0.0
+    strategic_trend_label: str = "SEM DADOS"
+    strategic_analyses: int = 0
+    current_career_direction_id: str | None = None
+    strategic_direction_history: list[StrategicDirectionSummary] = field(
+        default_factory=list
+    )
+
+    trajectory_alignment: str = "SEM DADOS SUFICIENTES"
+    trajectory_alignment_score: float = 0.0
+    trajectory_diagnosis: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -203,6 +237,9 @@ def normalize_analysis(
         "ats_report",
         "recommendation_report",
         "tailoring_report",
+        "decision_report",
+        "strategic_fit_result",
+        "career_decision",
     ):
         normalized[key] = deserialize_if_needed(
             normalized.get(key)
@@ -340,6 +377,184 @@ def analysis_scores(
     return career_fit, ats, tailoring
 
 
+
+def strategic_data_from_analysis(
+    analysis: dict[str, Any],
+) -> tuple[float, float, str | None, str | None]:
+    """Extrai Strategic Fit e Career Decision persistidos."""
+    decision_report = deserialize_if_needed(analysis.get("decision_report", {}))
+    if not isinstance(decision_report, dict):
+        decision_report = {}
+
+    strategic = deserialize_if_needed(analysis.get("strategic_fit_result", {}))
+    if not isinstance(strategic, dict) or not strategic:
+        strategic = deserialize_if_needed(
+            decision_report.get("strategic_fit_result", {})
+        )
+    if not isinstance(strategic, dict):
+        strategic = {}
+
+    decision = deserialize_if_needed(analysis.get("career_decision", {}))
+    if not isinstance(decision, dict) or not decision:
+        decision = deserialize_if_needed(
+            decision_report.get("career_decision", {})
+        )
+    if not isinstance(decision, dict):
+        decision = {}
+
+    strategic_score = 0.0
+    for key in ("strategic_fit_score", "score", "overall_score", "strategic_score"):
+        if strategic.get(key) is not None:
+            strategic_score = normalize_score(strategic.get(key))
+            break
+
+    decision_score = normalize_score(
+        analysis.get("decision_score")
+        if analysis.get("decision_score") is not None
+        else decision.get("decision_score", decision.get("score"))
+    )
+
+    decision_classification = (
+        decision.get("classification")
+        or decision.get("decision")
+        or decision_report.get("classification")
+    )
+    direction_classification = (
+        strategic.get("direction_classification")
+        or strategic.get("classification")
+        or decision.get("direction_classification")
+    )
+
+    return (
+        strategic_score,
+        decision_score,
+        str(decision_classification) if decision_classification else None,
+        str(direction_classification) if direction_classification else None,
+    )
+
+
+def classify_strategic_trend(value: float, count: int) -> str:
+    if count < 2:
+        return "SEM DADOS SUFICIENTES"
+    if value >= 8:
+        return "CONVERGÊNCIA FORTE"
+    if value >= 3:
+        return "CONVERGÊNCIA POSITIVA"
+    if value <= -8:
+        return "DIVERGÊNCIA RELEVANTE"
+    if value <= -3:
+        return "DIVERGÊNCIA"
+    return "ESTÁVEL"
+
+
+def classify_trajectory_alignment(
+    strategic_trend_label: str,
+    latest_strategic_fit: float,
+    strategic_analyses: int,
+) -> tuple[str, float, str]:
+    """
+    Classifica a trajetória das oportunidades em relação à Career Direction atual.
+
+    Combina nível atual de Strategic Fit e tendência longitudinal sem misturar
+    versões diferentes de Career Direction.
+    """
+    if strategic_analyses < 2:
+        return (
+            "SEM DADOS SUFICIENTES",
+            round(latest_strategic_fit, 2),
+            "São necessárias pelo menos 2 análises vinculadas à Career Direction atual.",
+        )
+
+    trend_component = {
+        "CONVERGÊNCIA FORTE": 20.0,
+        "CONVERGÊNCIA POSITIVA": 10.0,
+        "ESTÁVEL": 0.0,
+        "DIVERGÊNCIA": -10.0,
+        "DIVERGÊNCIA RELEVANTE": -20.0,
+    }.get(strategic_trend_label, 0.0)
+
+    alignment_score = round(
+        max(0.0, min(100.0, latest_strategic_fit + trend_component)),
+        2,
+    )
+
+    if strategic_trend_label in {"CONVERGÊNCIA FORTE", "CONVERGÊNCIA POSITIVA"}:
+        label = "CONVERGINDO"
+        diagnosis = (
+            "As oportunidades recentes estão se aproximando da Career Direction atual."
+        )
+    elif strategic_trend_label in {"DIVERGÊNCIA", "DIVERGÊNCIA RELEVANTE"}:
+        label = "DIVERGINDO"
+        diagnosis = (
+            "As oportunidades recentes estão se afastando da Career Direction atual."
+        )
+    elif latest_strategic_fit >= 70:
+        label = "ALINHADA E ESTÁVEL"
+        diagnosis = (
+            "A trajetória permanece estável em um nível forte de alinhamento estratégico."
+        )
+    elif latest_strategic_fit >= 50:
+        label = "ESTÁVEL"
+        diagnosis = (
+            "A trajetória está estável, com alinhamento estratégico intermediário."
+        )
+    else:
+        label = "ESTÁVEL COM BAIXO ALINHAMENTO"
+        diagnosis = (
+            "A trajetória está estável, mas ainda pouco alinhada à Career Direction atual."
+        )
+
+    return label, alignment_score, diagnosis
+
+
+def build_strategic_direction_history(
+    trajectory: list[AnalyticsPoint],
+) -> list[StrategicDirectionSummary]:
+    """
+    Consolida Strategic Fit por versão de Career Direction.
+
+    Isso impede que uma mudança de direção profissional misture séries
+    historicamente diferentes em um único KPI longitudinal.
+    """
+
+    grouped: dict[str, list[float]] = {}
+    order: list[str] = []
+
+    for point in trajectory:
+        direction_id = str(point.career_direction_id or "").strip()
+
+        if not direction_id or point.strategic_fit_score <= 0:
+            continue
+
+        if direction_id not in grouped:
+            grouped[direction_id] = []
+            order.append(direction_id)
+
+        grouped[direction_id].append(point.strategic_fit_score)
+
+    result: list[StrategicDirectionSummary] = []
+
+    for direction_id in order:
+        values = grouped[direction_id]
+
+        result.append(
+            StrategicDirectionSummary(
+                career_direction_id=direction_id,
+                analyses=len(values),
+                avg_strategic_fit=average(values),
+                latest_strategic_fit=round(values[-1], 2),
+                best_strategic_fit=round(max(values), 2),
+                strategic_fit_trend=calculate_trend(values),
+                strategic_trend_label=classify_strategic_trend(
+                    calculate_trend(values),
+                    len(values),
+                ),
+            )
+        )
+
+    return result
+
+
 def is_valid_longitudinal_analysis(
     analysis: Any,
 ) -> bool:
@@ -456,6 +671,11 @@ def build_trajectory(
                         "readiness_score",
                     ),
                 ),
+                strategic_fit_score=strategic_data_from_analysis(analysis)[0],
+                decision_score=strategic_data_from_analysis(analysis)[1],
+                career_direction_id=analysis.get("career_direction_id"),
+                decision_classification=strategic_data_from_analysis(analysis)[2],
+                direction_classification=strategic_data_from_analysis(analysis)[3],
             )
         )
 
@@ -1086,6 +1306,64 @@ def analyze_career_history(
         tailoring_values
     )
 
+    strategic_direction_history = build_strategic_direction_history(
+        trajectory
+    )
+
+    current_direction_summary = (
+        strategic_direction_history[-1]
+        if strategic_direction_history
+        else None
+    )
+
+    current_career_direction_id = (
+        current_direction_summary.career_direction_id
+        if current_direction_summary
+        else None
+    )
+
+    # The headline longitudinal Strategic Fit always represents the most
+    # recent versioned Career Direction. Earlier directions remain visible
+    # in strategic_direction_history, but are not mixed into the same KPI.
+    avg_strategic_fit = (
+        current_direction_summary.avg_strategic_fit
+        if current_direction_summary
+        else 0.0
+    )
+    latest_strategic_fit = (
+        current_direction_summary.latest_strategic_fit
+        if current_direction_summary
+        else 0.0
+    )
+    best_strategic_fit = (
+        current_direction_summary.best_strategic_fit
+        if current_direction_summary
+        else 0.0
+    )
+    strategic_fit_trend = (
+        current_direction_summary.strategic_fit_trend
+        if current_direction_summary
+        else 0.0
+    )
+    strategic_analyses = (
+        current_direction_summary.analyses
+        if current_direction_summary
+        else 0
+    )
+    strategic_trend_label = (
+        current_direction_summary.strategic_trend_label
+        if current_direction_summary
+        else "SEM DADOS SUFICIENTES"
+    )
+
+    trajectory_alignment, trajectory_alignment_score, trajectory_diagnosis = (
+        classify_trajectory_alignment(
+            strategic_trend_label=strategic_trend_label,
+            latest_strategic_fit=latest_strategic_fit,
+            strategic_analyses=strategic_analyses,
+        )
+    )
+
     trend_label = classify_trend(
         fit_trend
     )
@@ -1187,6 +1465,17 @@ def analyze_career_history(
             trend_label=trend_label,
             development_priorities=development_priorities,
         ),
+        avg_strategic_fit=avg_strategic_fit,
+        latest_strategic_fit=round(latest_strategic_fit, 2),
+        best_strategic_fit=round(best_strategic_fit, 2),
+        strategic_fit_trend=strategic_fit_trend,
+        strategic_trend_label=strategic_trend_label,
+        strategic_analyses=strategic_analyses,
+        current_career_direction_id=current_career_direction_id,
+        strategic_direction_history=strategic_direction_history,
+        trajectory_alignment=trajectory_alignment,
+        trajectory_alignment_score=trajectory_alignment_score,
+        trajectory_diagnosis=trajectory_diagnosis,
     )
 
 def build_analytics_summary(
@@ -1249,6 +1538,17 @@ def run_self_test() -> dict[str, Any]:
             "career_fit_score": 66,
             "ats_score": 63,
             "tailoring_score": 69,
+            "career_direction_id": "direction_previous",
+            "decision_report": {
+                "strategic_fit_result": {
+                    "strategic_fit_score": 50,
+                    "classification": "Weak Direction",
+                },
+                "career_decision": {
+                    "decision_score": 55,
+                    "classification": "LOW PRIORITY",
+                },
+            },
             "ats_report": json.dumps(
                 {
                     "mandatory_gaps": [
@@ -1279,6 +1579,17 @@ def run_self_test() -> dict[str, Any]:
             "career_fit_score": 74,
             "ats_score": 71,
             "tailoring_score": 78,
+            "career_direction_id": "direction_current",
+            "decision_report": {
+                "strategic_fit_result": {
+                    "strategic_fit_score": 60,
+                    "classification": "Moderate Direction",
+                },
+                "career_decision": {
+                    "decision_score": 68,
+                    "classification": "STRETCH OPPORTUNITY",
+                },
+            },
             "ats_report": {
                 "mandatory_gaps": [],
                 "preferred_gaps": [
@@ -1306,6 +1617,17 @@ def run_self_test() -> dict[str, Any]:
             "career_fit_score": 82,
             "ats_score": 79,
             "tailoring_score": 84,
+            "career_direction_id": "direction_current",
+            "decision_report": {
+                "strategic_fit_result": {
+                    "strategic_fit_score": 75,
+                    "classification": "Strong Direction",
+                },
+                "career_decision": {
+                    "decision_score": 82,
+                    "classification": "STRONG OPPORTUNITY",
+                },
+            },
             "ats_report": {
                 "mandatory_gaps": [],
                 "preferred_gaps": [],
@@ -1332,6 +1654,20 @@ def run_self_test() -> dict[str, Any]:
     assert report.registered_analyses == 5
     assert report.total_analyses == 4
     assert report.excluded_analyses == 1
+    assert report.current_career_direction_id == "direction_current"
+    assert len(report.strategic_direction_history) == 2
+    assert report.strategic_analyses == 2
+    assert report.avg_strategic_fit == 67.5
+    assert report.latest_strategic_fit == 75.0
+    assert report.best_strategic_fit == 75.0
+    assert report.strategic_fit_trend == 15.0
+    assert report.strategic_trend_label == "CONVERGÊNCIA FORTE"
+    assert report.trajectory_alignment == "CONVERGINDO"
+    assert report.trajectory_alignment_score == 95.0
+    assert (
+        report.trajectory_diagnosis
+        == "As oportunidades recentes estão se aproximando da Career Direction atual."
+    )
     assert all(
         (
             point.career_fit_score,

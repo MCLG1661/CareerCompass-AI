@@ -331,6 +331,7 @@ def persist_career_analysis(
     tailoring_report: Any = None,
     strategic_fit_result: Any = None,
     career_decision: Any = None,
+    career_direction_id: str | None = None,
 ) -> str:
     career_fit_score = extract_score(
         career_fit_report,
@@ -368,6 +369,7 @@ def persist_career_analysis(
         tailoring_report=tailoring_report,
         strategic_fit_result=strategic_fit_result,
         career_decision=career_decision,
+        career_direction_id=career_direction_id,
     )
 
 

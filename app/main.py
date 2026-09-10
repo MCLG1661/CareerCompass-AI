@@ -1728,7 +1728,7 @@ if st.session_state.selected_flow == "home":
     if executive_intelligence is not None:
         st.markdown("### Executive Career Intelligence")
 
-        ex1, ex2, ex3, ex4, ex5 = st.columns(5)
+        ex1, ex2, ex3, ex4, ex5, ex6 = st.columns(6)
 
         with ex1:
             st.metric(
@@ -1749,12 +1749,35 @@ if st.session_state.selected_flow == "home":
             )
 
         with ex3:
+            strategic_delta = (
+                f"{career_analytics.strategic_fit_trend:+.1f}"
+                if (
+                    career_analytics is not None
+                    and career_analytics.strategic_analyses >= 2
+                )
+                else None
+            )
+            strategic_value = (
+                f"{career_analytics.avg_strategic_fit:.1f}%"
+                if (
+                    career_analytics is not None
+                    and career_analytics.strategic_analyses > 0
+                )
+                else "N/A"
+            )
+            st.metric(
+                "Strategic Fit médio",
+                strategic_value,
+                delta=strategic_delta,
+            )
+
+        with ex4:
             st.metric(
                 "ATS médio",
                 f"{executive_intelligence.ats_average:.1f}%",
             )
 
-        with ex4:
+        with ex5:
             st.metric(
                 "Entrevistas",
                 executive_intelligence.interviews,
@@ -1765,7 +1788,7 @@ if st.session_state.selected_flow == "home":
                 ),
             )
 
-        with ex5:
+        with ex6:
             st.metric(
                 "Ofertas",
                 executive_intelligence.offers,
@@ -1776,6 +1799,49 @@ if st.session_state.selected_flow == "home":
                 ),
             )
 
+        # -----------------------------------------------------
+        # SPRINT 6.5.2 — EXECUTIVE SYNTHESIS
+        # -----------------------------------------------------
+        with st.container(border=True):
+            st.markdown("#### Executive Synthesis")
+            st.write(executive_intelligence.summary)
+
+            synthesis_col1, synthesis_col2, synthesis_col3, synthesis_col4 = st.columns(4)
+
+            with synthesis_col1:
+                st.metric(
+                    "Confiança",
+                    f"{executive_intelligence.confidence_score:.0f}%",
+                )
+
+            with synthesis_col2:
+                st.metric(
+                    "Qualidade dos dados",
+                    f"{executive_intelligence.data_quality_score:.0f}%",
+                )
+
+            with synthesis_col3:
+                st.metric(
+                    "Análises válidas",
+                    executive_intelligence.valid_analyses,
+                )
+
+            with synthesis_col4:
+                st.metric(
+                    "Análises registradas",
+                    executive_intelligence.registered_analyses,
+                )
+
+            if executive_intelligence.excluded_analyses:
+                st.caption(
+                    f"{executive_intelligence.excluded_analyses} registro(s) "
+                    "foram excluídos dos KPIs executivos por insuficiência de dados."
+                )
+
+            if executive_intelligence.next_best_action:
+                st.markdown("**Next Best Action**")
+                st.write(executive_intelligence.next_best_action)
+
         exec_left, exec_right = st.columns(
             [1.25, 1],
             gap="medium",
@@ -1785,6 +1851,110 @@ if st.session_state.selected_flow == "home":
             with st.container(border=True):
                 st.markdown("#### Inteligência longitudinal")
                 st.write(executive_intelligence.summary)
+
+                if (
+                    career_analytics is not None
+                    and career_analytics.strategic_analyses > 0
+                ):
+                    st.markdown("**Direção estratégica**")
+                    st.write(
+                        f"Strategic Fit médio: "
+                        f"{career_analytics.avg_strategic_fit:.1f}% · "
+                        f"Último: {career_analytics.latest_strategic_fit:.1f}% · "
+                        f"Melhor: {career_analytics.best_strategic_fit:.1f}%"
+                    )
+                    st.caption(
+                        f"Tendência estratégica: "
+                        f"{career_analytics.strategic_trend_label} · "
+                        f"{career_analytics.strategic_analyses} análise(s) "
+                        f"com contexto estratégico."
+                    )
+
+                    st.markdown("**Career Trajectory Intelligence**")
+                    t1, t2 = st.columns([1.2, 1])
+
+                    with t1:
+                        st.metric(
+                            "Trajetória",
+                            career_analytics.trajectory_alignment,
+                        )
+
+                    with t2:
+                        trajectory_score = (
+                            f"{career_analytics.trajectory_alignment_score:.0f}/100"
+                            if career_analytics.strategic_analyses >= 2
+                            else "N/A"
+                        )
+                        st.metric(
+                            "Alignment Score",
+                            trajectory_score,
+                        )
+
+                    if career_analytics.trajectory_diagnosis:
+                        st.write(career_analytics.trajectory_diagnosis)
+                else:
+                    st.caption(
+                        "Ainda não há histórico suficiente com Strategic Fit "
+                        "para estabelecer tendência estratégica longitudinal."
+                    )
+
+                if application_intelligence is not None:
+                    st.markdown("**Decision Learning**")
+
+                    dl1, dl2 = st.columns([1.2, 1])
+
+                    with dl1:
+                        st.metric(
+                            "Sinal de aprendizagem",
+                            application_intelligence.decision_learning_signal,
+                        )
+
+                    with dl2:
+                        st.metric(
+                            "Amostra vinculada",
+                            application_intelligence.decision_learning_samples,
+                        )
+
+                    if application_intelligence.decision_learning_summary:
+                        st.write(
+                            application_intelligence.decision_learning_summary
+                        )
+
+                    if application_intelligence.decision_score_performance:
+                        with st.expander(
+                            "Ver performance por Decision Score",
+                            expanded=False,
+                        ):
+                            decision_rows = [
+                                {
+                                    "Faixa": item.segment,
+                                    "Candidaturas": item.applications,
+                                    "Entrevistas": item.interviews,
+                                    "Ofertas": item.offers,
+                                    "Rejeições": item.rejected,
+                                    "Interview Rate": f"{item.interview_rate:.1f}%",
+                                    "Offer Rate": f"{item.offer_rate:.1f}%",
+                                    "Rejection Rate": f"{item.rejection_rate:.1f}%",
+                                    "Decision Score médio": (
+                                        f"{item.avg_decision_score:.1f}%"
+                                    ),
+                                    "Strategic Fit médio": (
+                                        f"{item.avg_strategic_fit:.1f}%"
+                                        if item.avg_strategic_fit > 0
+                                        else "N/A"
+                                    ),
+                                }
+                                for item in (
+                                    application_intelligence
+                                    .decision_score_performance
+                                )
+                            ]
+
+                            st.dataframe(
+                                decision_rows,
+                                use_container_width=True,
+                                hide_index=True,
+                            )
 
                 if executive_intelligence.executive_insights:
                     for insight in executive_intelligence.executive_insights[:4]:
@@ -1823,6 +1993,18 @@ if st.session_state.selected_flow == "home":
                         "Oportunidade": point.job_title or "Oportunidade",
                         "Empresa": point.company or "—",
                         "Career Fit": point.career_fit_score,
+                        "Strategic Fit": (
+                            point.strategic_fit_score
+                            if point.strategic_fit_score > 0
+                            else None
+                        ),
+                        "Decision Score": (
+                            point.decision_score
+                            if point.decision_score > 0
+                            else None
+                        ),
+                        "Direção": point.direction_classification or "—",
+                        "Decisão": point.decision_classification or "—",
                         "ATS": point.ats_score,
                         "Tailoring": point.tailoring_score,
                     }
@@ -2812,6 +2994,11 @@ elif st.session_state.selected_flow == "curator":
                         tailoring_report=tailoring_report,
                         strategic_fit_result=strategic_fit_result,
                         career_decision=career_decision,
+                        career_direction_id=(
+                            st.session_state.career_direction_active.get("id")
+                            if st.session_state.career_direction_active
+                            else None
+                        ),
                     )
 
                     st.session_state.career_opportunity_id = opportunity_id

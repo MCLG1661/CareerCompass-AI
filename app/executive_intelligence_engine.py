@@ -61,6 +61,11 @@ class ExecutiveIntelligenceReport:
     next_best_action: str = ""
     summary: str = ""
 
+    # Sprint 6.5.1 — consolidated executive synthesis
+    executive_synthesis: str = ""
+    strategic_context_status: str = "SEM DADOS SUFICIENTES"
+    decision_learning_status: str = "SEM DADOS SUFICIENTES"
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
@@ -383,6 +388,222 @@ def build_summary(
     )
 
 
+
+def _analysis_value(item: Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _strategic_fit_value(item: Any) -> float | None:
+    raw = _analysis_value(item, "strategic_fit_result")
+
+    if isinstance(raw, dict):
+        for key in ("strategic_fit_score", "score", "strategic_fit"):
+            value = raw.get(key)
+            if value is not None:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    pass
+
+    for key in ("strategic_fit_score", "strategic_fit"):
+        value = _analysis_value(item, key)
+        if value is not None:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                pass
+
+    return None
+
+
+def _has_current_direction_context(item: Any) -> bool:
+    return bool(
+        str(
+            _analysis_value(
+                item,
+                "career_direction_id",
+                "",
+            )
+            or ""
+        ).strip()
+    )
+
+
+def _decision_learning_sample(
+    analyses: list[Any],
+    applications: list[Any],
+) -> int:
+    analysis_ids = {
+        str(_analysis_value(item, "id", "") or "").strip()
+        for item in analyses
+        if str(_analysis_value(item, "id", "") or "").strip()
+    }
+
+    linked = 0
+
+    for application in applications:
+        analysis_id = str(
+            _analysis_value(
+                application,
+                "analysis_id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        status = str(
+            _analysis_value(
+                application,
+                "status",
+                "",
+            )
+            or ""
+        ).strip().lower()
+
+        if (
+            analysis_id
+            and analysis_id in analysis_ids
+            and status
+            and status not in {"planned", "saved", "draft"}
+        ):
+            linked += 1
+
+    return linked
+
+
+def build_executive_synthesis(
+    score: float,
+    momentum: str,
+    career_report: Any,
+    application_report: Any,
+    analyses: list[Any],
+    applications: list[Any],
+) -> tuple[str, str, str]:
+    """
+    Sprint 6.5.1.
+
+    Consolida os sinais longitudinais já disponíveis em uma leitura
+    executiva determinística. Não cria novos scores e não substitui
+    Career Analytics, Strategic Fit, Trajectory ou Decision Learning.
+    """
+
+    strategic_values = [
+        value
+        for value in (
+            _strategic_fit_value(item)
+            for item in analyses
+            if _has_current_direction_context(item)
+        )
+        if value is not None
+    ]
+
+    if len(strategic_values) >= 2:
+        strategic_context_status = "CONTEXTO ESTRATÉGICO EM FORMAÇÃO"
+    elif len(strategic_values) == 1:
+        strategic_context_status = "EVIDÊNCIA ESTRATÉGICA INICIAL"
+    else:
+        strategic_context_status = "SEM DADOS SUFICIENTES"
+
+    learning_sample = _decision_learning_sample(
+        analyses=analyses,
+        applications=applications,
+    )
+
+    if learning_sample >= 3:
+        decision_learning_status = "AMOSTRA MÍNIMA ATINGIDA"
+    elif learning_sample > 0:
+        decision_learning_status = "AMOSTRA INICIAL"
+    else:
+        decision_learning_status = "SEM DADOS SUFICIENTES"
+
+    parts = [
+        (
+            f"Career Intelligence Score de {score:.1f}/100, "
+            f"com momentum {momentum}."
+        )
+    ]
+
+    if career_report.total_analyses > 0:
+        parts.append(
+            f"O Career Fit médio está em "
+            f"{career_report.avg_career_fit:.1f}% "
+            f"em {career_report.total_analyses} análise(s) válida(s)."
+        )
+    else:
+        parts.append(
+            "Ainda não há análises válidas suficientes para caracterizar "
+            "a evolução do Career Fit."
+        )
+
+    if strategic_context_status == "CONTEXTO ESTRATÉGICO EM FORMAÇÃO":
+        avg_strategic = sum(strategic_values) / len(strategic_values)
+        parts.append(
+            f"A direção estratégica já possui {len(strategic_values)} "
+            f"análises vinculadas, com Strategic Fit médio de "
+            f"{avg_strategic:.1f}%."
+        )
+    elif strategic_context_status == "EVIDÊNCIA ESTRATÉGICA INICIAL":
+        parts.append(
+            "A Career Direction atual ainda possui apenas uma análise "
+            "com contexto estratégico; novas análises são necessárias "
+            "para confirmar a trajetória."
+        )
+    else:
+        parts.append(
+            "O histórico estratégico ainda é insuficiente para confirmar "
+            "convergência ou divergência em relação à Career Direction."
+        )
+
+    if decision_learning_status == "AMOSTRA MÍNIMA ATINGIDA":
+        parts.append(
+            f"O Decision Learning já conta com {learning_sample} "
+            "candidaturas vinculadas a resultados observáveis, permitindo "
+            "iniciar a leitura de padrões entre recomendação e resultado."
+        )
+    elif decision_learning_status == "AMOSTRA INICIAL":
+        parts.append(
+            f"O Decision Learning possui somente {learning_sample} "
+            "candidatura(s) vinculada(s) a resultado observado; a amostra "
+            "ainda é pequena para conclusões confiáveis."
+        )
+    else:
+        parts.append(
+            "Ainda não há candidaturas suficientes vinculadas a resultados "
+            "reais para validar padrões do Decision Learning."
+        )
+
+    if application_report.total_applications == 0:
+        parts.append(
+            "Prioridade executiva: transformar as análises mais aderentes "
+            "em candidaturas acompanhadas no pipeline."
+        )
+    elif learning_sample < 3:
+        parts.append(
+            "Prioridade executiva: manter o pipeline atualizado e registrar "
+            "os resultados das candidaturas para aumentar a evidência "
+            "longitudinal."
+        )
+    elif career_report.development_priorities:
+        parts.append(
+            "Prioridade executiva: combinar oportunidades de alta aderência "
+            f"com desenvolvimento de "
+            f"'{career_report.development_priorities[0]}'."
+        )
+    else:
+        parts.append(
+            "Prioridade executiva: concentrar esforço nas oportunidades com "
+            "maior aderência e acompanhar a conversão do pipeline."
+        )
+
+    return (
+        " ".join(parts),
+        strategic_context_status,
+        decision_learning_status,
+    )
+
+
 # ============================================================
 # MAIN ENGINE
 # ============================================================
@@ -441,6 +662,19 @@ def build_executive_intelligence(
         application_report=application_report,
     )
 
+    (
+        executive_synthesis,
+        strategic_context_status,
+        decision_learning_status,
+    ) = build_executive_synthesis(
+        score=score,
+        momentum=momentum,
+        career_report=career_report,
+        application_report=application_report,
+        analyses=analyses or [],
+        applications=applications or [],
+    )
+
     return ExecutiveIntelligenceReport(
         career_intelligence_score=score,
         confidence_score=confidence,
@@ -475,6 +709,9 @@ def build_executive_intelligence(
         )[:5],
         executive_insights=insights,
         next_best_action=next_best_action,
+        executive_synthesis=executive_synthesis,
+        strategic_context_status=strategic_context_status,
+        decision_learning_status=decision_learning_status,
         summary=build_summary(
             score=score,
             momentum=momentum,
@@ -580,6 +817,9 @@ def run_self_test() -> dict[str, Any]:
     assert report.excluded_analyses == 1
     assert report.data_quality_score == 75.0
     assert report.confidence_score < 70.0
+    assert report.executive_synthesis
+    assert report.strategic_context_status == "SEM DADOS SUFICIENTES"
+    assert report.decision_learning_status == "AMOSTRA MÍNIMA ATINGIDA"
 
     return {
         "status": "ok",
