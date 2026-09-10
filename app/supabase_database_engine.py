@@ -1399,6 +1399,17 @@ def _legacy_analysis(
         decision_data.get("recommendation")
     )
 
+    # Sprint 5.4D — expose persisted strategic/decision intelligence while
+    # preserving backward compatibility for analyses stored before this sprint.
+    result["strategic_fit_result"] = decision_data.get(
+        "strategic_fit_result",
+        {},
+    )
+    result["career_decision"] = decision_data.get(
+        "career_decision",
+        {},
+    )
+
     return result
 
 
@@ -1415,12 +1426,36 @@ def save_analysis(
     ats_report: Any = None,
     recommendation_report: Any = None,
     tailoring_report: Any = None,
+    strategic_fit_result: Any = None,
+    career_decision: Any = None,
 ) -> str:
+    decision_score = _normalize_score(
+        _extract_text(
+            career_decision,
+            ("decision_score", "score"),
+        )
+    )
+
+    # _extract_text preserves compatibility with dicts/dataclasses but can turn
+    # numeric values into strings. _normalize_score converts them back safely.
+    if decision_score is None and career_decision is not None:
+        if isinstance(career_decision, dict):
+            raw_decision_score = career_decision.get("decision_score")
+        else:
+            raw_decision_score = getattr(career_decision, "decision_score", None)
+        decision_score = _normalize_score(raw_decision_score)
+
     decision_payload = {
         "classification": classification,
         "recommendation": recommendation,
         "recommendation_report": serialize_json(
             recommendation_report
+        ),
+        "strategic_fit_result": serialize_json(
+            strategic_fit_result
+        ),
+        "career_decision": serialize_json(
+            career_decision
         ),
     }
 
@@ -1437,7 +1472,7 @@ def save_analysis(
         "tailoring_score": _normalize_score(
             tailoring_score
         ),
-        "decision_score": None,
+        "decision_score": decision_score,
         "curator_report": serialize_json(
             career_fit_report
         ),

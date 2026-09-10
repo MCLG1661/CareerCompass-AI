@@ -2775,6 +2775,7 @@ elif st.session_state.selected_flow == "curator":
                     ats_report=ats_report,
                     tailoring_report=tailoring_report,
                     opportunity_profile=opportunity_profile,
+                    strategic_fit_result=strategic_fit_result,
                 )
 
             st.session_state.curator_result = curator_result
@@ -2809,6 +2810,8 @@ elif st.session_state.selected_flow == "curator":
                         ats_report=ats_report,
                         recommendation_report=recommendation_report,
                         tailoring_report=tailoring_report,
+                        strategic_fit_result=strategic_fit_result,
+                        career_decision=career_decision,
                     )
 
                     st.session_state.career_opportunity_id = opportunity_id
@@ -3737,12 +3740,84 @@ elif st.session_state.selected_flow == "applications":
 
                 if real_analyses:
                     for item in real_analyses:
-                        st.write(
-                            f"**{item.get('job_title') or 'Oportunidade'}** "
-                            f"· Career Fit {item.get('career_fit_score') or 0}% "
-                            f"· ATS {item.get('ats_score') or 0}% "
-                            f"· Tailoring {item.get('tailoring_score') or 0}%"
+                        decision_report = item.get("decision_report") or {}
+                        strategic_fit = (
+                            item.get("strategic_fit_result")
+                            or decision_report.get("strategic_fit_result")
+                            or {}
                         )
+                        career_decision_history = (
+                            item.get("career_decision")
+                            or decision_report.get("career_decision")
+                            or {}
+                        )
+
+                        strategic_score = strategic_fit.get("score")
+                        decision_label = career_decision_history.get("decision")
+                        decision_score = (
+                            career_decision_history.get("decision_score")
+                            if career_decision_history
+                            else item.get("decision_score")
+                        )
+
+                        strategic_display = (
+                            f"{strategic_score}%"
+                            if strategic_score is not None
+                            else "N/A"
+                        )
+                        decision_display = decision_label or "N/A"
+                        decision_score_display = (
+                            f"{decision_score}%"
+                            if decision_score is not None
+                            else "N/A"
+                        )
+
+                        with st.container(border=True):
+                            st.markdown(
+                                f"**{item.get('job_title') or 'Oportunidade'}**"
+                            )
+
+                            hist1, hist2, hist3, hist4 = st.columns(4)
+                            with hist1:
+                                st.metric(
+                                    "Career Fit",
+                                    f"{item.get('career_fit_score') or 0}%",
+                                )
+                            with hist2:
+                                st.metric(
+                                    "Strategic Fit",
+                                    strategic_display,
+                                )
+                            with hist3:
+                                st.metric(
+                                    "Decision",
+                                    decision_display,
+                                )
+                            with hist4:
+                                st.metric(
+                                    "Decision Score",
+                                    decision_score_display,
+                                )
+
+                            st.caption(
+                                f"ATS {item.get('ats_score') or 0}% "
+                                f"· Tailoring {item.get('tailoring_score') or 0}%"
+                            )
+
+                            strategic_classification = strategic_fit.get("classification")
+                            next_best_action = career_decision_history.get("next_best_action")
+
+                            if strategic_classification:
+                                st.write(
+                                    f"**Direção estratégica:** "
+                                    f"{strategic_classification}"
+                                )
+
+                            if next_best_action:
+                                st.write(
+                                    f"**Next Best Action:** "
+                                    f"{next_best_action}"
+                                )
                 else:
                     st.caption("Nenhuma análise real persistida ainda.")
 
